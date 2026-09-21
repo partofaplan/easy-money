@@ -2,19 +2,16 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
-import { StoreProvider } from './state/store';
-import { ThemeProvider } from './state/theme';
+import { ProfileProvider } from './state/profileContext';
 import './styles/tokens.css';
 import './styles/base.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider>
-        <StoreProvider>
-          <App />
-        </StoreProvider>
-      </ThemeProvider>
+      <ProfileProvider>
+        <App />
+      </ProfileProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

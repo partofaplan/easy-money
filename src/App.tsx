@@ -1,6 +1,12 @@
+import { useMemo } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
-import { useStore } from './state/store';
+import { StoreProvider, useStore } from './state/store';
+import { ThemeProvider } from './state/theme';
+import { useProfiles } from './state/profileContext';
+import { LocalStorageRepository } from './state/repository';
+import { dataKey, themeKey } from './state/profiles';
+import { ProfilesPage } from './pages/ProfilesPage';
 import { Welcome } from './pages/setup/Welcome';
 import { PayFrequency } from './pages/setup/PayFrequency';
 import { Bonuses } from './pages/setup/Bonuses';
@@ -14,7 +20,7 @@ import { Ahead } from './pages/app/Ahead';
 import { PlanPage } from './pages/app/PlanPage';
 import { ExtraMoney } from './pages/app/ExtraMoney';
 import { BucketsPage } from './pages/app/BucketsPage';
-import { Appearance } from './pages/app/Appearance';
+import { Settings } from './pages/app/Settings';
 
 function RequireSetup({ children }: { children: JSX.Element }) {
   const { data } = useStore();
@@ -22,8 +28,35 @@ function RequireSetup({ children }: { children: JSX.Element }) {
 }
 
 export function App() {
+  const { active } = useProfiles();
+  const activeId = active?.id ?? null;
+  const repository = useMemo(() => (activeId ? new LocalStorageRepository(dataKey(activeId)) : null), [activeId]);
+
+  if (!active || !repository) {
+    return (
+      <ThemeProvider storageKey="easy-money.theme">
+        <Routes>
+          <Route path="*" element={<ProfilesPage />} />
+        </Routes>
+      </ThemeProvider>
+    );
+  }
+
+  // Both providers are keyed by profile so switching remounts them with that
+  // profile's data; neither relies on the other for isolation.
+  return (
+    <ThemeProvider key={`theme-${active.id}`} storageKey={themeKey(active.id)}>
+      <StoreProvider key={`store-${active.id}`} repository={repository}>
+        <AppRoutes />
+      </StoreProvider>
+    </ThemeProvider>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
+      <Route path="/profiles" element={<ProfilesPage />} />
       <Route path="/" element={<Welcome />} />
       <Route path="/setup/pay" element={<PayFrequency />} />
       <Route path="/setup/bonuses" element={<Bonuses />} />
@@ -45,7 +78,7 @@ export function App() {
         <Route path="ahead" element={<Ahead />} />
         <Route path="extra" element={<ExtraMoney />} />
         <Route path="buckets" element={<BucketsPage />} />
-        <Route path="settings" element={<Appearance />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

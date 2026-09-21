@@ -8,12 +8,14 @@ import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
 import { useCurrentPaycheck, useOutlook } from '../../state/selectors';
+import { useProfiles } from '../../state/profileContext';
 import { useStore } from '../../state/store';
 import { AheadPanel } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
   const { data, addPurchase, markBucketPaid, confirmPaycheck } = useStore();
+  const { active } = useProfiles();
   const desktop = useMediaQuery(DESKTOP);
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
@@ -69,6 +71,11 @@ export function Home() {
             <Icon name="plus" size={16} strokeWidth={2.6} />
             Add a purchase
           </button>
+          {!desktop && active && (
+            <Link to="/profiles" className="icon-btn" aria-label={`${active.name}'s budget. Switch profile`} title={`${active.name}'s budget`} style={{ background: 'var(--tint)', color: 'var(--accent)', fontWeight: 700 }}>
+              {active.name.slice(0, 1).toUpperCase()}
+            </Link>
+          )}
           {!desktop && (
             <Link to="/app/settings" className="icon-btn" aria-label="Settings">
               <Icon name="settings" size={20} />

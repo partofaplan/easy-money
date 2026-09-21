@@ -1,11 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ThemeChoice } from '../domain/types';
 
-const KEY = 'easy-money.theme';
-
-function readChoice(): ThemeChoice {
+function readChoice(key: string): ThemeChoice {
   try {
-    const v = localStorage.getItem(KEY);
+    const v = localStorage.getItem(key);
     return v === 'light' || v === 'dark' ? v : 'system';
   } catch {
     return 'system';
@@ -27,8 +25,9 @@ interface ThemeCtx {
 
 const Ctx = createContext<ThemeCtx | null>(null);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [choice, setChoiceState] = useState<ThemeChoice>(readChoice);
+/** @param storageKey where this profile's choice is kept */
+export function ThemeProvider({ children, storageKey }: { children: ReactNode; storageKey: string }) {
+  const [choice, setChoiceState] = useState<ThemeChoice>(() => readChoice(storageKey));
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   useEffect(() => {
@@ -40,15 +39,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => apply(choice), [choice]);
 
-  const setChoice = useCallback((c: ThemeChoice) => {
-    setChoiceState(c);
-    try {
-      if (c === 'system') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, c);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const setChoice = useCallback(
+    (c: ThemeChoice) => {
+      setChoiceState(c);
+      try {
+        if (c === 'system') localStorage.removeItem(storageKey);
+        else localStorage.setItem(storageKey, c);
+      } catch {
+        // ignore
+      }
+    },
+    [storageKey],
+  );
 
   const value = useMemo<ThemeCtx>(
     () => ({ choice, setChoice, resolved: choice === 'system' ? (systemDark ? 'dark' : 'light') : choice }),

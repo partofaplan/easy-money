@@ -4,7 +4,7 @@ import { emptyAnswers } from '../domain/types';
 import { fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
 import { newId } from '../lib/money';
-import { LocalStorageRepository, type Repository } from './repository';
+import type { Repository } from './repository';
 
 export const initialData: AppData = {
   version: 3,
@@ -176,9 +176,7 @@ interface Store {
 
 const StoreContext = createContext<Store | null>(null);
 
-const defaultRepository = new LocalStorageRepository();
-
-export function StoreProvider({ children, repository = defaultRepository }: { children: ReactNode; repository?: Repository }) {
+export function StoreProvider({ children, repository }: { children: ReactNode; repository: Repository }) {
   const [data, dispatch] = useReducer(reducer, undefined, () => repository.load() ?? initialData);
 
   useEffect(() => {
