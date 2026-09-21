@@ -128,7 +128,7 @@ describe('planned bonuses', () => {
 
 describe('bucket due dates', () => {
   const [p1, p2, p3] = payPeriods('2026-09-26', 'biweekly', 2140, 3);
-  const rent = { id: 'housing', name: 'Rent & housing', planned: 950, spent: 0, kind: 'spending' as const, dueDay: 1 };
+  const rent = { id: 'housing', name: 'Rent & housing', planned: 950, defaultAmount: 950, spent: 0, kind: 'spending' as const, dueDay: 1 };
 
   it('finds the due date inside the paycheck that contains it', () => {
     expect(dueDateInPeriod(1, p1)).toBe('2026-10-01');
@@ -186,11 +186,17 @@ describe('paycheck plans', () => {
     expect(planAssigned(stored, buckets)).toBe(2140);
   });
 
-  it('fills buckets from a plan, zeroing buckets the plan does not mention', () => {
-    const filled = fillFromPlan(buckets, { payday: 'x', takeHome: 500, allocations: { groceries: 500 } });
+  it('fills buckets from a plan; a bucket the plan does not mention uses its default', () => {
+    const filled = fillFromPlan(buckets, { payday: 'x', takeHome: 500, allocations: { groceries: 500, fun: 0 } });
     expect(filled.find((b) => b.id === 'groceries')?.planned).toBe(500);
-    expect(filled.find((b) => b.id === 'housing')?.planned).toBe(0);
+    expect(filled.find((b) => b.id === 'fun')?.planned).toBe(0);
+    expect(filled.find((b) => b.id === 'housing')?.planned).toBe(950);
     expect(filled.find((b) => b.id === 'housing')?.spent).toBe(950);
+  });
+
+  it('starts new plans from the default amount, not the current fill', () => {
+    const bumped = buckets.map((b) => (b.id === 'savings' ? { ...b, planned: 1500 } : b));
+    expect(planFor('2026-10-24', plans, bumped, answers).allocations.savings).toBe(300);
   });
 
   it('gives each upcoming paycheck its planned take-home', () => {

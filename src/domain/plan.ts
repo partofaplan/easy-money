@@ -62,13 +62,14 @@ export function suggestBuckets(paycheck: number): Bucket[] {
     id: t.id,
     name: t.name,
     planned: roundTo(paycheck * t.share, 10),
+    defaultAmount: 0,
     spent: 0,
     kind: t.kind,
   }));
   const assigned = buckets.reduce((sum, b) => sum + b.planned, 0);
   const other = buckets.find((b) => b.id === 'other') ?? buckets[buckets.length - 1];
   other.planned = Math.max(0, other.planned + Math.round(paycheck - assigned));
-  return buckets;
+  return buckets.map((b) => ({ ...b, defaultAmount: b.planned }));
 }
 
 /** Re-spread a paycheck over an existing bucket list, keeping their relative sizes. */
@@ -79,7 +80,7 @@ export function rescaleBuckets(buckets: Bucket[], paycheck: number): Bucket[] {
   const assigned = scaled.reduce((s, b) => s + b.planned, 0);
   const last = scaled[scaled.length - 1];
   last.planned = Math.max(0, last.planned + Math.round(paycheck - assigned));
-  return scaled;
+  return scaled.map((b) => ({ ...b, defaultAmount: b.planned }));
 }
 
 export function billsInPeriod(bills: Bill[], period: PayPeriod): Bill[] {
@@ -211,17 +212,22 @@ export function planFor(payday: string, plans: PaycheckPlan[], buckets: Bucket[]
   return {
     payday,
     takeHome: answers.paycheckAmount ?? 0,
-    allocations: Object.fromEntries(buckets.map((b) => [b.id, b.planned])),
+    allocations: Object.fromEntries(buckets.map((b) => [b.id, b.defaultAmount])),
   };
 }
 
-export function planAssigned(plan: PaycheckPlan, buckets: Bucket[]): number {
-  return buckets.reduce((s, b) => s + (plan.allocations[b.id] ?? 0), 0);
+/** A plan's amount for a bucket. A bucket added after the plan was stored uses its default. */
+export function plannedAmount(plan: PaycheckPlan, bucket: Bucket): number {
+  return plan.allocations[bucket.id] ?? bucket.defaultAmount;
 }
 
-/** Buckets with their amounts filled from a plan. Buckets the plan does not mention get 0. */
+export function planAssigned(plan: PaycheckPlan, buckets: Bucket[]): number {
+  return buckets.reduce((s, b) => s + plannedAmount(plan, b), 0);
+}
+
+/** Buckets with their amounts filled from a plan. */
 export function fillFromPlan(buckets: Bucket[], plan: PaycheckPlan): Bucket[] {
-  return buckets.map((b) => ({ ...b, planned: plan.allocations[b.id] ?? 0 }));
+  return buckets.map((b) => ({ ...b, planned: plannedAmount(plan, b) }));
 }
 
 export const FREQUENCY_LABEL: Record<PayFrequency, string> = {

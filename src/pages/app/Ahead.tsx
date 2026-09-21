@@ -123,7 +123,12 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
               return (
                 <Link to="/app/plan" className="between small" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
                   <span>{stored ? 'Planned' : 'Default plan'}: {fmt(assigned)} across {buckets.length} buckets</span>
-                  <span>{assigned === plan.takeHome ? 'Every dollar has a job' : assigned < plan.takeHome ? `${fmt(plan.takeHome - assigned)} unassigned` : `${fmt(assigned - plan.takeHome)} over`}</span>
+                  <span>
+                    {(() => {
+                      const have = s.period.takeHome + s.extraTotal;
+                      return assigned === have ? 'Every dollar has a job' : assigned < have ? `${fmt(have - assigned)} unassigned` : `${fmt(assigned - have)} over`;
+                    })()}
+                  </span>
                 </Link>
               );
             })()}

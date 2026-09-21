@@ -27,7 +27,8 @@ export function migrate(raw: unknown): AppData | null {
 
 type V1Event = { id: string; source: string; amount: number; receivedOn: string; allocation: { kind: BonusAllocation['kind'] } | null };
 type V1Data = Omit<V2Data, 'version' | 'incomeEvents'> & { version: 1; incomeEvents: V1Event[] };
-type V2Data = Omit<AppData, 'version' | 'plans' | 'deposit' | 'extraPlanned'> & { version: 2 };
+type V2Bucket = Omit<AppData['buckets'][number], 'defaultAmount'>;
+type V2Data = Omit<AppData, 'version' | 'plans' | 'deposit' | 'extraPlanned' | 'buckets'> & { version: 2; buckets: V2Bucket[] };
 
 /** v1 events had only a received date; every decision now names the paycheck it counts in. */
 function v1ToV2(v1: V1Data): V2Data {
@@ -46,12 +47,15 @@ function v1ToV2(v1: V1Data): V2Data {
   };
 }
 
-/** v3 adds per-paycheck plans and the confirmed deposit; the short-lived envelope fields are dropped. */
+/**
+ * v3 adds per-paycheck plans, the confirmed deposit and a per-bucket default
+ * amount; the short-lived envelope fields are dropped.
+ */
 function v2ToV3(v2: V2Data): AppData {
   return {
     ...v2,
     version: 3,
-    buckets: v2.buckets.map(({ id, name, planned, spent, kind, dueDay, paidOn }) => ({ id, name, planned, spent, kind, dueDay, paidOn })),
+    buckets: v2.buckets.map(({ id, name, planned, spent, kind, dueDay, paidOn }) => ({ id, name, planned, defaultAmount: planned, spent, kind, dueDay, paidOn })),
     plans: [],
     deposit: null,
     extraPlanned: 0,

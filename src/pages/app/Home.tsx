@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, nextPayday, planAssigned, planFor, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, nextPayday, planAssigned, planFor, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
-import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
+import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
-import { useOutlook } from '../../state/selectors';
+import { useCurrentPaycheck, useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
 import { AheadPanel, SmoothingCard } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
@@ -20,26 +20,24 @@ export function Home() {
   const [bucketId, setBucketId] = useState(data.buckets[0]?.id ?? '');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [landed, setLanded] = useState<number | null>(null);
+  const [landedOn, setLandedOn] = useState<string>('');
 
   const outlook = useOutlook();
-  const period = outlook[0]?.period;
-  const confirmed = !!period && data.deposit?.payday === period.payday;
-  const takeHome = period?.takeHome ?? data.answers.paycheckAmount ?? 0;
+  const { period: current, confirmed, takeHome, extraEvents, extra, planned, left } = useCurrentPaycheck();
+  const period = current ?? undefined;
+  const now = today();
+  const irregular = data.answers.payFrequency === 'irregular';
   const following = period && data.answers.payFrequency ? nextPayday(period.payday, data.answers.payFrequency) : null;
   // Which paycheck the confirm card is about: the current one until it is confirmed, then the next.
-  const toConfirm = period ? (confirmed ? following : period.payday) : null;
+  // For irregular pay the next date is whatever the user enters.
+  const toConfirm = period ? (confirmed ? (irregular && landedOn ? landedOn : following) : period.payday) : null;
   const planToConfirm = toConfirm ? planFor(toConfirm, data.plans, data.buckets, data.answers) : null;
-  const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
   const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
-  const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
-  const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
   const waiting = data.incomeEvents.find((e) => e.allocation === null);
   const available = takeHome + extra;
-  const left = available - planned;
   const smoothing = suggestSmoothing(outlook);
 
-  const now = today();
   const dueNow = period ? bucketsDueInPeriod(data.buckets, period, now).filter((d) => !d.due.paid) : [];
   const timing = period
     ? period.payday > now
@@ -128,6 +126,7 @@ export function Home() {
                 onClick={() => {
                   setConfirming(toConfirm);
                   setLanded(planToConfirm.takeHome);
+                  if (irregular && confirmed) setLandedOn(following ?? addDays(period!.payday, 14));
                 }}
               >
                 It landed
@@ -140,12 +139,25 @@ export function Home() {
               style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}
               onSubmit={(e) => {
                 e.preventDefault();
-                if (landed && landed > 0) {
+                if (!landed || landed <= 0) return;
+                const early = confirmed && toConfirm > now;
+                if (
+                  !early ||
+                  window.confirm(`${fmtWeekday(toConfirm)} is ${daysBetween(now, toConfirm)} days away. Confirm anyway? This starts a new paycheck and resets this one's spending.`)
+                ) {
                   confirmPaycheck(toConfirm, landed);
                   setConfirming(null);
                 }
               }}
             >
+              {irregular && confirmed && (
+                <div className="field">
+                  <label htmlFor="landed-on">Paid on</label>
+                  <div className="input">
+                    <input id="landed-on" type="date" value={landedOn} min={addDays(period!.payday, 1)} onChange={(e) => setLandedOn(e.target.value)} />
+                  </div>
+                </div>
+              )}
               <div className="field grow">
                 <label htmlFor="landed">What actually landed</label>
                 <MoneyInput id="landed" value={landed} onChange={setLanded} />

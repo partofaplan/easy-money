@@ -55,8 +55,15 @@ describe('reducer: paycheck plans and confirmation', () => {
     const bills = state.buckets.find((b) => b.id === 'bills')!;
     expect(bills).toMatchObject({ planned: 360, spent: 0 });
     expect(state.buckets.find((b) => b.id === 'housing')?.paidOn).toBeUndefined();
-    // The plan for the paycheck that just became current stays; older ones are dropped.
-    expect(state.plans.map((p) => p.payday)).toEqual(['2026-10-10']);
+    // Once confirmed, the buckets are the truth and the stored plan goes.
+    expect(state.plans).toEqual([]);
+  });
+
+  it('accepts any later date as the next paycheck when pay is irregular', () => {
+    const irregular = { ...demo(), answers: { ...demo().answers, payFrequency: 'irregular' as const } };
+    const state = reducer(irregular, { type: 'confirmPaycheck', payday: '2026-10-03', amount: 1800 });
+    expect(state.answers.nextPayday).toBe('2026-10-03');
+    expect(state.deposit?.amount).toBe(1800);
   });
 
   it('ignores a confirmation for a paycheck that is neither current nor next', () => {

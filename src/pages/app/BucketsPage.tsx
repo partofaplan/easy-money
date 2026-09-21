@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import type { Bucket } from '../../domain/types';
-import { extraTotalForPayday } from '../../domain/plan';
 import { ordinalDay } from '../../lib/dates';
 import { fmt, newId } from '../../lib/money';
-import { useCurrentPayday } from '../../state/selectors';
+import { useCurrentPaycheck } from '../../state/selectors';
 import { useStore } from '../../state/store';
 
 export function BucketsPage() {
@@ -13,8 +12,7 @@ export function BucketsPage() {
   const [list, setList] = useState<Bucket[]>(data.buckets);
   const [saved, setSaved] = useState(false);
 
-  const currentPayday = useCurrentPayday();
-  const paycheck = (data.answers.paycheckAmount ?? 0) + extraTotalForPayday(data.incomeEvents, currentPayday);
+  const { available: paycheck } = useCurrentPaycheck();
   const planned = list.reduce((s, b) => s + b.planned, 0);
   const left = paycheck - planned;
   const dirty = JSON.stringify(list) !== JSON.stringify(data.buckets);
@@ -92,7 +90,7 @@ export function BucketsPage() {
           className="bucket-add"
           onClick={() => {
             setSaved(false);
-            setList((l) => [...l, { id: newId('bucket'), name: 'New bucket', planned: Math.max(0, left), spent: 0, kind: 'spending' }]);
+            setList((l) => [...l, { id: newId('bucket'), name: 'New bucket', planned: Math.max(0, left), defaultAmount: Math.max(0, left), spent: 0, kind: 'spending' }]);
           }}
         >
           <Icon name="plus" size={16} strokeWidth={2.6} />
@@ -106,7 +104,7 @@ export function BucketsPage() {
           className="btn btn-primary"
           disabled={!dirty || list.some((b) => !b.name.trim())}
           onClick={() => {
-            setBuckets(list.map((b) => ({ ...b, name: b.name.trim() })));
+            setBuckets(list.map((b) => ({ ...b, name: b.name.trim(), defaultAmount: b.planned })));
             setSaved(true);
           }}
         >

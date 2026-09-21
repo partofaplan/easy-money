@@ -133,18 +133,22 @@ export function reducer(state: AppData, action: Action): AppData {
       if (!payFrequency || !current) return state;
       const plan = planFor(action.payday, state.plans, state.buckets, state.answers);
       const deposit = { payday: action.payday, amount: action.amount };
+      // Once a paycheck is confirmed its buckets are the truth; the stored plan is dropped.
+      const remaining = state.plans.filter((p) => p.payday > action.payday);
       if (action.payday === current) {
         // The paycheck already in progress: record what landed and fill the buckets.
-        return { ...state, deposit, buckets: fillFromPlan(state.buckets, plan) };
+        return { ...state, deposit, plans: remaining, buckets: fillFromPlan(state.buckets, plan) };
       }
-      if (action.payday === nextPayday(current, payFrequency)) {
+      // Irregular pay has no fixed next date, so any later date counts; otherwise it must be the next payday.
+      const isNext = payFrequency === 'irregular' ? action.payday > current : action.payday === nextPayday(current, payFrequency);
+      if (isNext) {
         // The next paycheck landed: move to it, fill buckets, start spending fresh.
         return {
           ...state,
           answers: { ...state.answers, nextPayday: action.payday },
           deposit,
           buckets: fillFromPlan(state.buckets, plan).map((b) => ({ ...b, spent: 0, paidOn: undefined })),
-          plans: state.plans.filter((p) => p.payday >= action.payday),
+          plans: remaining,
           extraPlanned: Math.max(0, state.extraPlanned - 1),
         };
       }

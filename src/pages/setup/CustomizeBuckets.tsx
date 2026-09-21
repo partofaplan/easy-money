@@ -9,7 +9,7 @@ import { useStore } from '../../state/store';
 
 /** Starter buckets with relative weights; real amounts come from the paycheck later. */
 function seed(): Bucket[] {
-  return STARTER_BUCKETS.map((t) => ({ id: t.id, name: t.name, planned: Math.round(t.share * 1000), spent: 0, kind: t.kind }));
+  return STARTER_BUCKETS.map((t) => ({ id: t.id, name: t.name, planned: Math.round(t.share * 1000), defaultAmount: Math.round(t.share * 1000), spent: 0, kind: t.kind }));
 }
 
 export function CustomizeBuckets() {
@@ -19,7 +19,7 @@ export function CustomizeBuckets() {
 
   const update = (id: string, name: string) => setList((l) => l.map((b) => (b.id === id ? { ...b, name } : b)));
   const remove = (id: string) => setList((l) => l.filter((b) => b.id !== id));
-  const add = () => setList((l) => [...l, { id: newId('bucket'), name: '', planned: 65, spent: 0, kind: 'spending' }]);
+  const add = () => setList((l) => [...l, { id: newId('bucket'), name: '', planned: 65, defaultAmount: 65, spent: 0, kind: 'spending' }]);
   const valid = list.length > 0 && list.every((b) => b.name.trim().length > 0);
 
   return (

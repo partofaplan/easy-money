@@ -19,11 +19,10 @@ export interface Answers {
 export interface Bucket {
   id: string;
   name: string;
-  /**
-   * Filled into this bucket for the current paycheck, in dollars. Also the
-   * default amount a new paycheck plan starts from.
-   */
+  /** Filled into this bucket for the current paycheck, in dollars. */
   planned: number;
+  /** The amount a new paycheck plan starts from. Edited on the Buckets screen. */
+  defaultAmount: number;
   /** Spent (or moved, for savings) in the current paycheck. */
   spent: number;
   kind: 'spending' | 'savings';
