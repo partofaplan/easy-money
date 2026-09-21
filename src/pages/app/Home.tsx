@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, hasMonthlyTarget, projectFunding, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, nextPayday, planAssigned, planFor, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -13,18 +13,24 @@ import { AheadPanel, SmoothingCard } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
-  const { data, addPurchase, markBucketPaid, startNextPaycheck } = useStore();
+  const { data, addPurchase, markBucketPaid, confirmPaycheck } = useStore();
   const desktop = useMediaQuery(DESKTOP);
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
   const [bucketId, setBucketId] = useState(data.buckets[0]?.id ?? '');
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [landed, setLanded] = useState<number | null>(null);
 
   const outlook = useOutlook();
   const period = outlook[0]?.period;
-  const takeHome = data.answers.paycheckAmount ?? 0;
+  const confirmed = !!period && data.deposit?.payday === period.payday;
+  const takeHome = period?.takeHome ?? data.answers.paycheckAmount ?? 0;
+  const following = period && data.answers.payFrequency ? nextPayday(period.payday, data.answers.payFrequency) : null;
+  // Which paycheck the confirm card is about: the current one until it is confirmed, then the next.
+  const toConfirm = period ? (confirmed ? following : period.payday) : null;
+  const planToConfirm = toConfirm ? planFor(toConfirm, data.plans, data.buckets, data.answers) : null;
   const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
-  // Paying a monthly bill out of its envelope is not overspending this paycheck.
-  const spent = data.buckets.reduce((s, b) => s + (hasMonthlyTarget(b) ? Math.min(b.spent, b.planned) : b.spent), 0);
+  const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
   const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
   const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
@@ -102,10 +108,70 @@ export function Home() {
         </form>
       )}
 
+      {toConfirm && planToConfirm && (
+        <div className={`card ${confirmed ? '' : 'tint'} stack`} style={{ marginTop: 16, gap: 10 }}>
+          <div className="between" style={{ alignItems: 'flex-start' }}>
+            <span className="stack" style={{ gap: 2 }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>
+                {confirmed ? `Next paycheck ${fmtWeekday(toConfirm)}` : `Has your ${fmtWeekday(toConfirm)} paycheck landed?`}
+              </span>
+              <span className="small muted">
+                Planned {fmt(planToConfirm.takeHome)} · {fmt(planAssigned(planToConfirm, data.buckets))} assigned across {data.buckets.length} buckets.{' '}
+                <Link to="/app/plan">Adjust the plan</Link>
+              </span>
+            </span>
+            {confirming !== toConfirm && (
+              <button
+                type="button"
+                className={`btn btn-sm ${confirmed ? 'btn-outline' : 'btn-primary'}`}
+                style={{ minHeight: 40, flexShrink: 0 }}
+                onClick={() => {
+                  setConfirming(toConfirm);
+                  setLanded(planToConfirm.takeHome);
+                }}
+              >
+                It landed
+              </button>
+            )}
+          </div>
+          {confirming === toConfirm && (
+            <form
+              className="row"
+              style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (landed && landed > 0) {
+                  confirmPaycheck(toConfirm, landed);
+                  setConfirming(null);
+                }
+              }}
+            >
+              <div className="field grow">
+                <label htmlFor="landed">What actually landed</label>
+                <MoneyInput id="landed" value={landed} onChange={setLanded} />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ minHeight: 48 }} disabled={!landed || landed <= 0}>
+                Fill my buckets
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirming(null)}>
+                Not yet
+              </button>
+              {landed !== null && landed > 0 && landed !== planToConfirm.takeHome && (
+                <span className="small muted" style={{ flexBasis: '100%' }}>
+                  {landed > planToConfirm.takeHome
+                    ? `${fmt(landed - planToConfirm.takeHome)} more than planned. It will show as left to assign.`
+                    : `${fmt(planToConfirm.takeHome - landed)} less than planned. The plan will show as over; trim a bucket after.`}
+                </span>
+              )}
+            </form>
+          )}
+        </div>
+      )}
+
       <div className="hero" style={{ marginTop: 20 }}>
         <div className="between" style={{ alignItems: 'flex-start' }}>
           <span className="stack" style={{ gap: 6 }}>
-            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : 'Take-home this paycheck'}</span>
+            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}</span>
             <span className="display amount">{fmt(available)}</span>
             {extra > 0 && (
               <span style={{ fontSize: 14, opacity: 0.9 }}>
@@ -148,21 +214,6 @@ export function Home() {
         </Link>
       )}
 
-      {period && (
-        <div className="between" style={{ marginTop: 10, padding: '0 4px' }}>
-          <span className="small muted">Paid again? Move on and carry your envelopes forward.</span>
-          <button
-            type="button"
-            className="link small"
-            onClick={() => {
-              if (window.confirm('Start the next paycheck? Envelope balances carry forward and this paycheck\'s spending resets.')) startNextPaycheck();
-            }}
-          >
-            Start the next paycheck
-          </button>
-        </div>
-      )}
-
       <div className="between" style={{ marginTop: 22, alignItems: 'baseline' }}>
         <h2>Your buckets</h2>
         <span className="small muted" style={{ fontWeight: 700 }}>
@@ -184,13 +235,11 @@ export function Home() {
       <div className="buckets" style={{ marginTop: 12 }}>
         {data.buckets.map((b) => {
           const due = period ? bucketDueStatus(b, period, now) : null;
-          const funding = period && hasMonthlyTarget(b) ? projectFunding(b, [period])[0] : null;
           return (
             <BucketRow
               key={b.id}
               bucket={b}
               due={due}
-              funding={funding}
               onMarkPaid={due ? (paid) => markBucketPaid(b.id, paid ? due.dueOn : undefined) : undefined}
             />
           );

@@ -1,10 +1,18 @@
 import { buildOutlook, type PeriodSummary } from '../domain/plan';
 import { useStore } from './store';
 
-/** The upcoming paychecks, with bills, reserves and planned extra money applied. */
-export function useOutlook(): PeriodSummary[] {
+/** The upcoming paychecks, with bills, reserves, planned extra money and per-paycheck plans applied. */
+export function useOutlook(extra = 0): PeriodSummary[] {
   const { data } = useStore();
-  return buildOutlook(data.answers, data.bills, data.reserves, data.incomeEvents);
+  return buildOutlook({
+    answers: data.answers,
+    bills: data.bills,
+    reserves: data.reserves,
+    events: data.incomeEvents,
+    plans: data.plans,
+    deposit: data.deposit,
+    extra,
+  });
 }
 
 /** Payday of the paycheck the user is in right now, or null before setup. */

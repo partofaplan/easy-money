@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   bucketDueStatus,
+  buildOutlook,
   dueDateInPeriod,
-  paychecksPerMonth,
-  projectFunding,
-  suggestedSetAside,
+  fillFromPlan,
+  planAssigned,
+  planFor,
+  takeHomeFor,
   extraTotalForPayday,
   horizonCount,
   nextPayday,
@@ -15,9 +17,9 @@ import {
   summarizePeriod,
 } from './plan';
 import { ordinalDay } from '../lib/dates';
-import { SAMPLE_BILLS as DEMO_BILLS } from '../data/fixtures';
+import { DEMO_DATA, SAMPLE_BILLS as DEMO_BILLS } from '../data/fixtures';
 
-// The demo no longer lists rent as a bill (it is an envelope now); these tests keep it for tightness.
+// The demo models rent as a bucket with a due day; these tests keep it as a bill for the tightness cases.
 const SAMPLE_BILLS = [
   ...DEMO_BILLS,
   { id: 'rent-oct', name: 'Rent', amount: 950, dueDate: '2026-10-01' },
@@ -164,57 +166,35 @@ describe('bucket due dates', () => {
   });
 });
 
-describe('saving for a monthly bill across paychecks', () => {
-  const periods = payPeriods('2026-09-26', 'biweekly', 2140, 3);
-  const rent = { id: 'housing', name: 'Rent', planned: 950, spent: 0, kind: 'spending' as const, dueDay: 1, monthlyTarget: 1900, fundOver: 2, balance: 950 };
+describe('paycheck plans', () => {
+  const { answers, buckets, plans, deposit } = DEMO_DATA;
 
-  it('knows how many paychecks a month holds', () => {
-    expect(paychecksPerMonth('weekly')).toBe(4);
-    expect(paychecksPerMonth('biweekly')).toBe(2);
-    expect(paychecksPerMonth('semimonthly')).toBe(2);
-    expect(paychecksPerMonth('monthly')).toBe(1);
-    expect(suggestedSetAside(1900, 2)).toBe(950);
-    expect(suggestedSetAside(1000, 3)).toBe(334);
+  it('uses what landed, then the plan, then the setup default for take-home', () => {
+    expect(takeHomeFor('2026-09-26', answers, plans, deposit)).toBe(2140);
+    expect(takeHomeFor('2026-10-10', { ...answers, paycheckAmount: 1000 }, plans, deposit)).toBe(2140);
+    expect(takeHomeFor('2026-10-24', { ...answers, paycheckAmount: 1000 }, plans, deposit)).toBe(1000);
+    expect(takeHomeFor('2026-09-26', answers, plans, { payday: '2026-09-26', amount: 2200 })).toBe(2200);
   });
 
-  it('fills the envelope each payday and pays it out on the due date', () => {
-    const steps = projectFunding(rent, periods);
-    expect(steps.map((s) => [s.ready, s.dueOn, s.short, s.carried])).toEqual([
-      [1900, '2026-10-01', 0, 0],
-      [950, null, 0, 950],
-      [1900, '2026-11-01', 0, 0],
-    ]);
+  it('builds a default plan from bucket amounts and keeps a stored one', () => {
+    const fresh = planFor('2026-10-24', plans, buckets, answers);
+    expect(fresh.takeHome).toBe(2140);
+    expect(fresh.allocations.housing).toBe(950);
+    expect(planAssigned(fresh, buckets)).toBe(2140);
+    const stored = planFor('2026-10-10', plans, buckets, answers);
+    expect(stored.allocations.bills).toBe(360);
+    expect(planAssigned(stored, buckets)).toBe(2140);
   });
 
-  it('flags a shortfall when the envelope will not be full by the due date', () => {
-    const steps = projectFunding({ ...rent, balance: 0 }, periods);
-    expect(steps[0]).toMatchObject({ ready: 950, short: 950, carried: 0 });
-    expect(steps[2]).toMatchObject({ ready: 1900, short: 0 });
+  it('fills buckets from a plan, zeroing buckets the plan does not mention', () => {
+    const filled = fillFromPlan(buckets, { payday: 'x', takeHome: 500, allocations: { groceries: 500 } });
+    expect(filled.find((b) => b.id === 'groceries')?.planned).toBe(500);
+    expect(filled.find((b) => b.id === 'housing')?.planned).toBe(0);
+    expect(filled.find((b) => b.id === 'housing')?.spent).toBe(950);
   });
 
-  it('does not count a bill already paid this paycheck as short', () => {
-    const steps = projectFunding({ ...rent, balance: 0, spent: 1900 }, periods);
-    expect(steps[0]).toMatchObject({ short: 0, paid: true, carried: 0 });
-    const marked = projectFunding({ ...rent, paidOn: '2026-10-01' }, periods);
-    expect(marked[0]).toMatchObject({ paid: true, carried: 0 });
-  });
-
-  it('carries less when more than the bill was spent, and nothing extra when less', () => {
-    const over = projectFunding({ ...rent, balance: 1500, spent: 2100 }, periods);
-    expect(over[0].carried).toBe(1500 + 950 - 2100);
-    expect(projectFunding({ ...rent, balance: 1000, spent: 2100 }, periods)[0].carried).toBe(0);
-    const partial = projectFunding({ ...rent, spent: 500 }, periods);
-    expect(partial[0]).toMatchObject({ ready: 1900, short: 0, carried: 0 });
-  });
-
-  it('treats a cleared monthly amount as an ordinary bucket', () => {
-    const cleared = { ...rent, monthlyTarget: 0, spent: 950 };
-    expect(bucketDueStatus(cleared, periods[0], '2026-09-27')?.paid).toBe(true);
-  });
-
-  it('marks the envelope paid once spending reaches the monthly amount, not the set-aside', () => {
-    const p1 = periods[0];
-    expect(bucketDueStatus({ ...rent, spent: 950 }, p1, '2026-09-27')?.paid).toBe(false);
-    expect(bucketDueStatus({ ...rent, spent: 1900 }, p1, '2026-09-27')?.paid).toBe(true);
+  it('gives each upcoming paycheck its planned take-home', () => {
+    const outlook = buildOutlook({ answers: { ...answers, paycheckAmount: 2000 }, bills: [], reserves: [], events: [], plans, deposit, extra: 1 });
+    expect(outlook.map((s) => s.period.takeHome)).toEqual([2140, 2140, 2000, 2000]);
   });
 });

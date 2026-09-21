@@ -17,7 +17,7 @@ export const STARTER_BUCKETS: ReadonlyArray<{ id: string; name: string; share: n
   { id: 'other', name: 'Everything else', share: 0.065, kind: 'spending' },
 ];
 
-/** Sample bills used to populate the Ahead view. Rent is modelled as a bucket with a monthly target instead. */
+/** Sample bills used to populate the Ahead view. Rent is a bucket with a due day, so it is not listed here. */
 export const SAMPLE_BILLS: Bill[] = [
   { id: 'phone-oct', name: 'Phone', amount: 65, dueDate: '2026-10-03' },
   { id: 'car-ins', name: 'Car insurance', amount: 180, dueDate: '2026-10-15' },
@@ -47,7 +47,7 @@ export const SAMPLE_EXPECTED_BONUS: IncomeEvent = {
 
 /** The fully set-up budget shown to people who skip the walkthrough. */
 export const DEMO_DATA: AppData = {
-  version: 2,
+  version: 3,
   setupComplete: true,
   answers: {
     payFrequency: 'biweekly',
@@ -58,8 +58,7 @@ export const DEMO_DATA: AppData = {
     paycheckAmount: 2140,
   },
   buckets: [
-    // Rent is due on the 1st and saved for across two paychecks: $950 from each.
-    { id: 'housing', name: 'Rent & housing', planned: 950, spent: 0, kind: 'spending', dueDay: 1, monthlyTarget: 1900, fundOver: 2, balance: 950 },
+    { id: 'housing', name: 'Rent & housing', planned: 950, spent: 950, kind: 'spending', dueDay: 1 },
     { id: 'groceries', name: 'Groceries', planned: 260, spent: 84, kind: 'spending' },
     { id: 'bills', name: 'Bills & utilities', planned: 210, spent: 65, kind: 'spending', dueDay: 3 },
     { id: 'transport', name: 'Getting around', planned: 140, spent: 38, kind: 'spending' },
@@ -70,6 +69,16 @@ export const DEMO_DATA: AppData = {
   bills: SAMPLE_BILLS,
   incomeEvents: [SAMPLE_BONUS, SAMPLE_EXPECTED_BONUS],
   reserves: [],
+  // The Oct 10 paycheck carries three bills, so its plan puts more in Bills & utilities and less in fun.
+  plans: [
+    {
+      payday: '2026-10-10',
+      takeHome: 2140,
+      allocations: { housing: 950, groceries: 260, bills: 360, transport: 140, fun: 80, savings: 300, other: 50 },
+    },
+  ],
+  deposit: { payday: '2026-09-26', amount: 2140 },
+  extraPlanned: 0,
 };
 
 /** Sample savings and debt balances shown on the extra-money screen. */

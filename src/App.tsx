@@ -11,6 +11,7 @@ import { Ready } from './pages/setup/Ready';
 import { Estimate } from './pages/setup/Estimate';
 import { Home } from './pages/app/Home';
 import { Ahead } from './pages/app/Ahead';
+import { PlanPage } from './pages/app/PlanPage';
 import { ExtraMoney } from './pages/app/ExtraMoney';
 import { BucketsPage } from './pages/app/BucketsPage';
 import { Appearance } from './pages/app/Appearance';
@@ -40,6 +41,7 @@ export function App() {
         }
       >
         <Route index element={<Home />} />
+        <Route path="plan" element={<PlanPage />} />
         <Route path="ahead" element={<Ahead />} />
         <Route path="extra" element={<ExtraMoney />} />
         <Route path="buckets" element={<BucketsPage />} />

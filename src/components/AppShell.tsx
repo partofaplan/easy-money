@@ -27,6 +27,7 @@ export function AppShell() {
           <Brand to="/app" />
         </div>
         <Item to="/app" end icon="wallet" label="This paycheck" />
+        <Item to="/app/plan" icon="calendar" label="Plan" />
         {showAhead && <Item to="/app/ahead" icon="arrow" label="Ahead" />}
         {showExtra && <Item to="/app/extra" icon="star" label="Extra money" />}
         <Item to="/app/buckets" icon="grid" label="Buckets" />

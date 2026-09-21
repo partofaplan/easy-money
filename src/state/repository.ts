@@ -21,14 +21,16 @@ export function migrate(raw: unknown): AppData | null {
   if (!raw || typeof raw !== 'object') return null;
   let data = raw as { version?: number };
   if (data.version === 1) data = v1ToV2(data as V1Data);
-  return data.version === 2 ? (data as AppData) : null;
+  if (data.version === 2) data = v2ToV3(data as V2Data);
+  return data.version === 3 ? (data as AppData) : null;
 }
 
 type V1Event = { id: string; source: string; amount: number; receivedOn: string; allocation: { kind: BonusAllocation['kind'] } | null };
-type V1Data = Omit<AppData, 'version' | 'incomeEvents'> & { version: 1; incomeEvents: V1Event[] };
+type V1Data = Omit<V2Data, 'version' | 'incomeEvents'> & { version: 1; incomeEvents: V1Event[] };
+type V2Data = Omit<AppData, 'version' | 'plans' | 'deposit' | 'extraPlanned'> & { version: 2 };
 
 /** v1 events had only a received date; every decision now names the paycheck it counts in. */
-function v1ToV2(v1: V1Data): AppData {
+function v1ToV2(v1: V1Data): V2Data {
   const payday = v1.answers?.nextPayday ?? '';
   return {
     ...v1,
@@ -41,6 +43,18 @@ function v1ToV2(v1: V1Data): AppData {
       status: 'received',
       allocation: e.allocation ? { kind: e.allocation.kind, payday } : null,
     })),
+  };
+}
+
+/** v3 adds per-paycheck plans and the confirmed deposit; the short-lived envelope fields are dropped. */
+function v2ToV3(v2: V2Data): AppData {
+  return {
+    ...v2,
+    version: 3,
+    buckets: v2.buckets.map(({ id, name, planned, spent, kind, dueDay, paidOn }) => ({ id, name, planned, spent, kind, dueDay, paidOn })),
+    plans: [],
+    deposit: null,
+    extraPlanned: 0,
   };
 }
 

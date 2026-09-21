@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
-import { bucketsDueInPeriod, dueDatesInPeriod, hasMonthlyTarget, projectFunding, suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
+import { bucketsDueInPeriod, dueDatesInPeriod, suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
 import type { Bucket } from '../../domain/types';
 import { fmtShort, fmtWeekday, today } from '../../lib/dates';
+import { planAssigned, planFor } from '../../domain/plan';
 import { fmt } from '../../lib/money';
 import { useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
@@ -38,6 +39,7 @@ function dueIn(buckets: Bucket[], s: PeriodSummary, isCurrent: boolean): { bucke
 }
 
 export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodSummary[]; buckets: Bucket[]; compact?: boolean }) {
+  const { data } = useStore();
   if (compact) {
     return (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -69,16 +71,9 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
     );
   }
 
-  const periods = summaries.map((x) => x.period);
-  const funding = buckets.filter(hasMonthlyTarget).map((b) => ({ bucket: b, steps: projectFunding(b, periods) }));
-
   return (
     <div className="stack">
-      {summaries.map((s, i) => {
-        // An envelope that will not be full by its due date makes the paycheck tight too.
-        const envelopeShort = funding.some(({ steps }) => steps[i].short > 0);
-        const status = envelopeShort ? 'tight' : s.status;
-        return (
+      {summaries.map((s, i) => (
         <div key={s.period.payday} className="card stack" style={{ gap: 8, borderColor: i === 0 ? 'var(--accent)' : undefined, borderWidth: i === 0 ? 1.5 : 1 }}>
           <div className="between">
             <span className="stack" style={{ gap: 0 }}>
@@ -87,7 +82,7 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
             </span>
             <span className="stack" style={{ alignItems: 'flex-end', gap: 0 }}>
               <span style={{ fontWeight: 700, fontSize: 18 }}>{fmt(s.period.takeHome)}</span>
-              <span className={`status ${status}`}>{status === 'covered' ? 'Covered' : 'Tight'}</span>
+              <span className={`status ${s.status}`}>{s.status === 'covered' ? 'Covered' : 'Tight'}</span>
             </span>
           </div>
           <div className="stack" style={{ gap: 4, paddingTop: 8, borderTop: '1px solid var(--divider)' }}>
@@ -121,33 +116,26 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
               <span>Left for buckets</span>
               <span style={{ fontWeight: 700 }}>{fmt(s.leftForBuckets)}</span>
             </div>
+            {(() => {
+              const plan = planFor(s.period.payday, data.plans, buckets, data.answers);
+              const assigned = planAssigned(plan, buckets);
+              const stored = data.plans.some((p) => p.payday === s.period.payday);
+              return (
+                <Link to="/app/plan" className="between small" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 700 }}>
+                  <span>{stored ? 'Planned' : 'Default plan'}: {fmt(assigned)} across {buckets.length} buckets</span>
+                  <span>{assigned === plan.takeHome ? 'Every dollar has a job' : assigned < plan.takeHome ? `${fmt(plan.takeHome - assigned)} unassigned` : `${fmt(assigned - plan.takeHome)} over`}</span>
+                </Link>
+              );
+            })()}
             {dueIn(buckets, s, i === 0).map(({ bucket, dueOn }) => (
               <div key={bucket.id} className="due" style={{ marginTop: 4 }}>
                 <Icon name="alert" size={14} strokeWidth={2.4} />
                 {bucket.name} due {fmtShort(dueOn)}
               </div>
             ))}
-            {funding.map(({ bucket, steps }) => {
-              const step = steps[i];
-              return (
-                <div key={bucket.id} className="between small" style={{ color: step.short > 0 ? 'var(--warn-text)' : 'var(--muted)', fontWeight: step.short > 0 ? 700 : 400 }}>
-                  <span className="row" style={{ gap: 6 }}>
-                    <Icon name="wallet" size={14} />
-                    {step.paid
-                      ? `${bucket.name}: paid`
-                      : step.dueOn
-                      ? step.short > 0
-                        ? `${bucket.name}: ${fmt(step.ready)} ready, short ${fmt(step.short)} for ${fmtShort(step.dueOn)}`
-                        : `${bucket.name}: ${fmt(step.ready)} ready for ${fmtShort(step.dueOn)}`
-                      : `${bucket.name}: +${fmt(step.setAside)} set aside, ${fmt(step.ready)} of ${fmt(bucket.monthlyTarget)}`}
-                  </span>
-                </div>
-              );
-            })}
           </div>
         </div>
-        );
-      })}
+      ))}
     </div>
   );
 }

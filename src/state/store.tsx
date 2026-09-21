@@ -1,20 +1,22 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
-import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, Reserve } from '../domain/types';
+import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan, Reserve } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { dueDateInPeriod, envelopeOutflow, hasMonthlyTarget, nextPayday, rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
-import { addDays } from '../lib/dates';
 import { newId } from '../lib/money';
 import { LocalStorageRepository, type Repository } from './repository';
 
 export const initialData: AppData = {
-  version: 2,
+  version: 3,
   setupComplete: false,
   answers: emptyAnswers,
   buckets: [],
   bills: [],
   incomeEvents: [],
   reserves: [],
+  plans: [],
+  deposit: null,
+  extraPlanned: 0,
 };
 
 export type Action =
@@ -28,7 +30,9 @@ export type Action =
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
   | { type: 'markReceived'; eventId: string }
   | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
-  | { type: 'startNextPaycheck' }
+  | { type: 'setPlan'; plan: PaycheckPlan }
+  | { type: 'planAnother' }
+  | { type: 'confirmPaycheck'; payday: string; amount: number }
   | { type: 'reset' };
 
 export function reducer(state: AppData, action: Action): AppData {
@@ -115,24 +119,36 @@ export function reducer(state: AppData, action: Action): AppData {
     case 'addReserves':
       return { ...state, reserves: [...state.reserves, ...action.reserves.map((r) => ({ ...r, id: newId('res') }))] };
 
-    case 'startNextPaycheck': {
-      const { payFrequency, nextPayday: payday } = state.answers;
-      if (!payFrequency || !payday) return state;
-      const following = nextPayday(payday, payFrequency);
-      const period = { payday, end: addDays(following, -1), takeHome: 0 };
+    case 'setPlan':
       return {
         ...state,
-        answers: { ...state.answers, nextPayday: following },
-        // Envelopes with a monthly target carry what was set aside and not paid out
-        // (a bill marked paid by hand counts as paid out). Every bucket starts the
-        // new paycheck with nothing spent and no hand-marked payment.
-        buckets: state.buckets.map((b) => {
-          const next = { ...b, spent: 0, paidOn: undefined };
-          if (!hasMonthlyTarget(b)) return next;
-          const billDue = dueDateInPeriod(b.dueDay, period) !== null;
-          return { ...next, balance: Math.max(0, (b.balance ?? 0) + b.planned - envelopeOutflow(b, billDue, true)) };
-        }),
+        plans: [...state.plans.filter((p) => p.payday !== action.plan.payday), action.plan].sort((a, b) => a.payday.localeCompare(b.payday)),
       };
+
+    case 'planAnother':
+      return { ...state, extraPlanned: state.extraPlanned + 1 };
+
+    case 'confirmPaycheck': {
+      const { payFrequency, nextPayday: current } = state.answers;
+      if (!payFrequency || !current) return state;
+      const plan = planFor(action.payday, state.plans, state.buckets, state.answers);
+      const deposit = { payday: action.payday, amount: action.amount };
+      if (action.payday === current) {
+        // The paycheck already in progress: record what landed and fill the buckets.
+        return { ...state, deposit, buckets: fillFromPlan(state.buckets, plan) };
+      }
+      if (action.payday === nextPayday(current, payFrequency)) {
+        // The next paycheck landed: move to it, fill buckets, start spending fresh.
+        return {
+          ...state,
+          answers: { ...state.answers, nextPayday: action.payday },
+          deposit,
+          buckets: fillFromPlan(state.buckets, plan).map((b) => ({ ...b, spent: 0, paidOn: undefined })),
+          plans: state.plans.filter((p) => p.payday >= action.payday),
+          extraPlanned: Math.max(0, state.extraPlanned - 1),
+        };
+      }
+      return state;
     }
 
     case 'reset':
@@ -153,8 +169,10 @@ interface Store {
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
   markReceived: (eventId: string) => void;
   addReserves: (reserves: Omit<Reserve, 'id'>[]) => void;
-  /** Move to the next payday: carry envelope balances forward and reset spending. */
-  startNextPaycheck: () => void;
+  setPlan: (plan: PaycheckPlan) => void;
+  planAnother: () => void;
+  /** Confirm a paycheck landed with `amount`, filling buckets from its plan. */
+  confirmPaycheck: (payday: string, amount: number) => void;
   reset: () => void;
 }
 
@@ -182,7 +200,9 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
       addReserves: (reserves) => dispatch({ type: 'addReserves', reserves }),
-      startNextPaycheck: () => dispatch({ type: 'startNextPaycheck' }),
+      setPlan: (plan) => dispatch({ type: 'setPlan', plan }),
+      planAnother: () => dispatch({ type: 'planAnother' }),
+      confirmPaycheck: (payday, amount) => dispatch({ type: 'confirmPaycheck', payday, amount }),
       reset: () => {
         repository.clear();
         dispatch({ type: 'reset' });

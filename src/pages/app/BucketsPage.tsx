@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import type { Bucket } from '../../domain/types';
-import { extraTotalForPayday, hasMonthlyTarget, paychecksPerMonth, suggestedSetAside } from '../../domain/plan';
+import { extraTotalForPayday } from '../../domain/plan';
 import { ordinalDay } from '../../lib/dates';
 import { fmt, newId } from '../../lib/money';
 import { useCurrentPayday } from '../../state/selectors';
@@ -12,8 +12,6 @@ export function BucketsPage() {
   const { data, setBuckets } = useStore();
   const [list, setList] = useState<Bucket[]>(data.buckets);
   const [saved, setSaved] = useState(false);
-  const [open, setOpen] = useState<Set<string>>(() => new Set(data.buckets.filter(hasMonthlyTarget).map((b) => b.id)));
-  const perMonth = paychecksPerMonth(data.answers.payFrequency ?? 'biweekly');
 
   const currentPayday = useCurrentPayday();
   const paycheck = (data.answers.paycheckAmount ?? 0) + extraTotalForPayday(data.incomeEvents, currentPayday);
@@ -87,76 +85,6 @@ export function BucketsPage() {
                 </select>
               </div>
             </div>
-            {open.has(b.id) ? (
-              <div className="stack monthly" style={{ gap: 8 }}>
-                <span className="small muted">
-                  A bill that comes once a month, saved for a bit at a time. The envelope carries what you set aside until it&rsquo;s due.
-                </span>
-                {!b.dueDay && (
-                  <span className="small" style={{ color: 'var(--warn-text)', fontWeight: 700 }}>
-                    Pick a due day above so the envelope knows when the bill goes out.
-                  </span>
-                )}
-                <div className="grid-2" style={{ gap: 8 }}>
-                  <div className="field">
-                    <label htmlFor={`target-${b.id}`}>Monthly amount</label>
-                    <MoneyInput id={`target-${b.id}`} value={b.monthlyTarget ?? null} onChange={(v) => patch(b.id, { monthlyTarget: v ?? undefined })} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`over-${b.id}`}>Set aside across</label>
-                    <div className="input">
-                      <select id={`over-${b.id}`} value={b.fundOver ?? perMonth} onChange={(e) => patch(b.id, { fundOver: Number(e.target.value) })}>
-                        {Array.from({ length: perMonth }, (_, i) => i + 1).map((n) => (
-                          <option key={n} value={n}>
-                            {n} paycheck{n > 1 ? 's' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`balance-${b.id}`}>Saved so far</label>
-                    <MoneyInput id={`balance-${b.id}`} value={b.balance ?? 0} onChange={(v) => patch(b.id, { balance: v ?? 0 })} />
-                  </div>
-                  <div className="field">
-                    <span style={{ fontSize: 14, fontWeight: 700 }}>Each paycheck</span>
-                    {hasMonthlyTarget(b) ? (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline"
-                        style={{ minHeight: 48, justifyContent: 'flex-start' }}
-                        onClick={() => patch(b.id, { planned: suggestedSetAside(b.monthlyTarget, b.fundOver ?? perMonth) })}
-                      >
-                        Use {fmt(suggestedSetAside(b.monthlyTarget, b.fundOver ?? perMonth))}
-                      </button>
-                    ) : (
-                      <span className="small muted" style={{ paddingTop: 12 }}>
-                        Enter the amount first.
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="link small"
-                  style={{ alignSelf: 'flex-start' }}
-                  onClick={() => {
-                    patch(b.id, { monthlyTarget: undefined, fundOver: undefined, balance: undefined });
-                    setOpen((o) => {
-                      const n = new Set(o);
-                      n.delete(b.id);
-                      return n;
-                    });
-                  }}
-                >
-                  Stop saving across paychecks
-                </button>
-              </div>
-            ) : (
-              <button type="button" className="link small monthly" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen((o) => new Set(o).add(b.id))}>
-                Save for a monthly bill across paychecks
-              </button>
-            )}
           </div>
         ))}
         <button

@@ -1,0 +1,121 @@
+import { Link } from 'react-router-dom';
+import { Icon } from '../../components/Icon';
+import { MoneyInput } from '../../components/MoneyInput';
+import { planAssigned, planFor } from '../../domain/plan';
+import type { PaycheckPlan } from '../../domain/types';
+import { fmtShort, fmtWeekday, ordinalDay } from '../../lib/dates';
+import { fmt } from '../../lib/money';
+import { useOutlook } from '../../state/selectors';
+import { useStore } from '../../state/store';
+
+/**
+ * One paycheck's plan: expected take-home and what goes into each bucket.
+ * Edits save as they are made; the plan is applied when the paycheck is confirmed on Home.
+ */
+function PlanCard({ plan, index, previous, confirmedAmount }: { plan: PaycheckPlan; index: number; previous: PaycheckPlan | null; confirmedAmount: number | null }) {
+  const { data, setPlan } = useStore();
+  const buckets = data.buckets;
+  const assigned = planAssigned(plan, buckets);
+  const takeHome = confirmedAmount ?? plan.takeHome;
+  const left = takeHome - assigned;
+  const stored = data.plans.some((p) => p.payday === plan.payday);
+  const current = index === 0;
+
+  const setAllocation = (id: string, amount: number | null) => setPlan({ ...plan, allocations: { ...plan.allocations, [id]: amount ?? 0 } });
+  const useDefaults = () => setPlan({ ...plan, allocations: Object.fromEntries(buckets.map((b) => [b.id, b.planned])) });
+  const copyPrevious = () => previous && setPlan({ ...plan, takeHome: previous.takeHome, allocations: { ...previous.allocations } });
+
+  return (
+    <section className="card stack" style={{ gap: 12, borderColor: current ? 'var(--accent)' : undefined, borderWidth: current ? 1.5 : 1 }} aria-labelledby={`plan-${plan.payday}`}>
+      <div className="between" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <span className="stack" style={{ gap: 2 }}>
+          <h2 id={`plan-${plan.payday}`} style={{ fontSize: 20 }}>
+            {fmtWeekday(plan.payday)}
+          </h2>
+          <span className="small muted">
+            {current ? (confirmedAmount !== null ? `This paycheck, landed ${fmt(confirmedAmount)}` : 'This paycheck, not confirmed yet') : index === 1 ? 'Next paycheck' : 'Coming up'}
+            {stored ? '' : ' · using bucket defaults'}
+          </span>
+        </span>
+        <span
+          className="pill"
+          style={{
+            background: left === 0 ? 'var(--tint)' : 'var(--warn-bg)',
+            color: left === 0 ? 'var(--accent)' : 'var(--warn-text)',
+          }}
+        >
+          {left === 0 ? 'Every dollar has a job' : left > 0 ? `${fmt(left)} unassigned` : `${fmt(-left)} over`}
+        </span>
+      </div>
+
+      <div className="field" style={{ maxWidth: 240 }}>
+        <label htmlFor={`take-${plan.payday}`}>Expected take-home</label>
+        {confirmedAmount !== null ? (
+          <div className="input" style={{ background: 'var(--tint)', borderColor: 'transparent' }}>
+            <span className="unit">$</span>
+            <span style={{ fontWeight: 700 }}>{confirmedAmount.toLocaleString('en-US')}</span>
+            <span className="small muted">landed</span>
+          </div>
+        ) : (
+          <MoneyInput id={`take-${plan.payday}`} value={plan.takeHome} onChange={(v) => setPlan({ ...plan, takeHome: v ?? 0 })} />
+        )}
+      </div>
+
+      <div className="grid-2" style={{ gap: 10 }}>
+        {buckets.map((b) => (
+          <div key={b.id} className="field">
+            <label htmlFor={`alloc-${plan.payday}-${b.id}`}>
+              {b.name}
+              {b.dueDay ? <span className="muted" style={{ fontWeight: 600 }}> · due the {ordinalDay(b.dueDay)}</span> : null}
+            </label>
+            <MoneyInput id={`alloc-${plan.payday}-${b.id}`} value={plan.allocations[b.id] ?? 0} onChange={(v) => setAllocation(b.id, v)} />
+          </div>
+        ))}
+      </div>
+
+      <div className="between small" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <span className="muted">
+          {fmt(assigned)} assigned of {fmt(takeHome)}
+        </span>
+        <span className="row" style={{ gap: 14 }}>
+          {previous && (
+            <button type="button" className="link small" onClick={copyPrevious}>
+              Same as {fmtShort(previous.payday)}
+            </button>
+          )}
+          <button type="button" className="link small" onClick={useDefaults}>
+            Use bucket defaults
+          </button>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+export function PlanPage() {
+  const { data, planAnother } = useStore();
+  // Plan at least this paycheck and the next, whatever the horizon from setup.
+  const base = useOutlook(0).length;
+  const outlook = useOutlook(Math.max(0, 2 - base) + data.extraPlanned);
+  const paydays = outlook.map((s) => s.period.payday);
+  const plans = paydays.map((payday) => planFor(payday, data.plans, data.buckets, data.answers));
+
+  return (
+    <main className="shell-main stack" style={{ gap: 18, maxWidth: 760 }}>
+      <div className="page-head stack" style={{ gap: 6 }}>
+        <h1>Paycheck plan</h1>
+        <p className="muted" style={{ fontSize: 15 }}>
+          Decide ahead of time where each paycheck goes. Bills that change month to month, or that you save for differently, get their own numbers. When a paycheck lands,
+          confirm it on <Link to="/app">This paycheck</Link> and the buckets fill themselves.
+        </p>
+      </div>
+      {plans.map((plan, i) => (
+        <PlanCard key={plan.payday} plan={plan} index={i} previous={i > 0 ? plans[i - 1] : null} confirmedAmount={data.deposit?.payday === plan.payday ? data.deposit.amount : null} />
+      ))}
+      <button type="button" className="bucket-add" onClick={planAnother}>
+        <Icon name="plus" size={16} strokeWidth={2.6} />
+        Plan another paycheck
+      </button>
+    </main>
+  );
+}
