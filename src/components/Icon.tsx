@@ -14,7 +14,8 @@ export type IconName =
   | 'plus'
   | 'wallet'
   | 'coin'
-  | 'trash';
+  | 'trash'
+  | 'alert';
 
 const PATHS: Record<IconName, JSX.Element> = {
   calendar: (
@@ -78,6 +79,12 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <path d="M4 7h16M10 11v6M14 11v6" />
       <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </>
+  ),
+  alert: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.5h.01" />
     </>
   ),
 };

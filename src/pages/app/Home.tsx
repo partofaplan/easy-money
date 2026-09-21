@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { extraForPayday, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -33,6 +33,7 @@ export function Home() {
   const smoothing = suggestSmoothing(outlook);
 
   const now = today();
+  const dueNow = period ? bucketsDueInPeriod(data.buckets, period, now).filter((d) => !d.due.paid) : [];
   const timing = period
     ? period.payday > now
       ? `Starts ${fmtWeekday(period.payday)}.`
@@ -152,9 +153,21 @@ export function Home() {
           spent of planned
         </span>
       </div>
+      {dueNow.length > 0 && (
+        <div className="card warn row" style={{ marginTop: 12, alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--warn-text)', display: 'inline-flex', marginTop: 2 }}>
+            <Icon name="alert" size={18} strokeWidth={2.4} />
+          </span>
+          <span style={{ fontSize: 14 }}>
+            <b>Due this paycheck:</b>{' '}
+            {dueNow.map((d) => `${d.bucket.name} (${d.due.overdue ? 'was due ' : ''}${fmtShort(d.due.dueOn)})`).join(', ')}. Don&rsquo;t forget to pay{' '}
+            {dueNow.length === 1 ? 'it' : 'them'}.
+          </span>
+        </div>
+      )}
       <div className="buckets" style={{ marginTop: 12 }}>
         {data.buckets.map((b) => (
-          <BucketRow key={b.id} bucket={b} />
+          <BucketRow key={b.id} bucket={b} due={period ? bucketDueStatus(b, period, now) : null} />
         ))}
         <Link to="/app/buckets" className="bucket-add" style={{ textDecoration: 'none' }}>
           <Icon name="plus" size={16} strokeWidth={2.6} />
@@ -170,7 +183,7 @@ export function Home() {
     <div className="with-aside">
       {main}
       <aside className="aside" aria-label="Coming up">
-        {data.answers.horizon !== 'this' && <AheadPanel summaries={outlook} compact />}
+        {data.answers.horizon !== 'this' && <AheadPanel summaries={outlook} buckets={data.buckets} compact />}
         {smoothing && <SmoothingCard smoothing={smoothing} />}
         {data.answers.bonuses !== 'none' && <ExtraMoneyPanel compact />}
       </aside>

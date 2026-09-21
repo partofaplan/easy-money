@@ -24,6 +24,12 @@ export interface Bucket {
   /** Spent (or moved, for savings) in the current paycheck. */
   spent: number;
   kind: 'spending' | 'savings';
+  /**
+   * Day of the month this bucket's payment is due, 1 to 31. Days past the end
+   * of a month clamp to its last day, so 31 means "the last day". Optional so
+   * older stored data keeps working; absent means no due date.
+   */
+  dueDay?: number;
 }
 
 export interface Bill {

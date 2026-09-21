@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { extraTotalForPayday, horizonCount, nextPayday, payPeriods, periodForDate, suggestBuckets, suggestSmoothing, summarizePeriod } from './plan';
+import {
+  bucketDueStatus,
+  dueDateInPeriod,
+  extraTotalForPayday,
+  horizonCount,
+  nextPayday,
+  payPeriods,
+  periodForDate,
+  suggestBuckets,
+  suggestSmoothing,
+  summarizePeriod,
+} from './plan';
+import { ordinalDay } from '../lib/dates';
 import { SAMPLE_BILLS } from '../data/fixtures';
 
 describe('nextPayday', () => {
@@ -99,5 +111,40 @@ describe('planned bonuses', () => {
     expect(extraTotalForPayday(events, null)).toBe(0);
     const first = summarizePeriod(periods[0], SAMPLE_BILLS, [], events);
     expect(first.extraTotal).toBe(1600);
+  });
+});
+
+describe('bucket due dates', () => {
+  const [p1, p2, p3] = payPeriods('2026-09-26', 'biweekly', 2140, 3);
+  const rent = { id: 'housing', name: 'Rent & housing', planned: 950, spent: 0, kind: 'spending' as const, dueDay: 1 };
+
+  it('finds the due date inside the paycheck that contains it', () => {
+    expect(dueDateInPeriod(1, p1)).toBe('2026-10-01');
+    expect(dueDateInPeriod(1, p2)).toBeNull();
+    expect(dueDateInPeriod(1, p3)).toBe('2026-11-01');
+    expect(dueDateInPeriod(15, p2)).toBe('2026-10-15');
+    expect(dueDateInPeriod(undefined, p1)).toBeNull();
+    // Monthly pay with the due day before payday: the due date is in the following month.
+    expect(dueDateInPeriod(10, { payday: '2026-10-15', end: '2026-11-14', takeHome: 0 })).toBe('2026-11-10');
+    // A one-week paycheck that skips the due day entirely.
+    expect(dueDateInPeriod(20, { payday: '2026-10-05', end: '2026-10-11', takeHome: 0 })).toBeNull();
+  });
+
+  it('clamps the 31st to the last day of short months', () => {
+    const feb = { payday: '2026-02-20', end: '2026-03-05', takeHome: 0 };
+    expect(dueDateInPeriod(31, feb)).toBe('2026-02-28');
+  });
+
+  it('reports due, paid and overdue', () => {
+    expect(bucketDueStatus(rent, p1, '2026-09-27')).toEqual({ dueOn: '2026-10-01', paid: false, overdue: false });
+    expect(bucketDueStatus(rent, p1, '2026-10-03')).toEqual({ dueOn: '2026-10-01', paid: false, overdue: true });
+    expect(bucketDueStatus({ ...rent, spent: 950 }, p1, '2026-10-03')).toEqual({ dueOn: '2026-10-01', paid: true, overdue: false });
+    expect(bucketDueStatus(rent, p2, '2026-10-12')).toBeNull();
+  });
+
+  it('formats ordinals', () => {
+    expect(['1', '2', '3', '4', '11', '12', '13', '21', '22', '23', '31'].map((d) => ordinalDay(Number(d)))).toEqual([
+      '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', 'last day',
+    ]);
   });
 });

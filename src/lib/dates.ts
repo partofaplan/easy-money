@@ -47,3 +47,11 @@ export function fmtShort(iso: string): string {
 export function fmtWeekday(iso: string): string {
   return WEEKDAY.format(parseISO(iso));
 }
+
+/** "1st", "2nd", "15th", or "last day" for 31. */
+export function ordinalDay(day: number): string {
+  if (day >= 31) return 'last day';
+  const mod100 = day % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? 'th' : day % 10 === 1 ? 'st' : day % 10 === 2 ? 'nd' : day % 10 === 3 ? 'rd' : 'th';
+  return `${day}${suffix}`;
+}
