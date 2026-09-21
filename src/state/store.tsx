@@ -22,6 +22,7 @@ export type Action =
   | { type: 'completeSetup' }
   | { type: 'loadDemo' }
   | { type: 'addPurchase'; bucketId: string; amount: number }
+  | { type: 'markBucketPaid'; bucketId: string; dueOn: string | undefined }
   | { type: 'addIncome'; event: Omit<IncomeEvent, 'id' | 'allocation'> }
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
   | { type: 'markReceived'; eventId: string }
@@ -56,6 +57,12 @@ export function reducer(state: AppData, action: Action): AppData {
       return {
         ...state,
         buckets: state.buckets.map((b) => (b.id === action.bucketId ? { ...b, spent: b.spent + action.amount } : b)),
+      };
+
+    case 'markBucketPaid':
+      return {
+        ...state,
+        buckets: state.buckets.map((b) => (b.id === action.bucketId ? { ...b, paidOn: action.dueOn } : b)),
       };
 
     case 'addIncome':
@@ -118,6 +125,8 @@ interface Store {
   completeSetup: () => void;
   loadDemo: () => void;
   addPurchase: (bucketId: string, amount: number) => void;
+  /** Mark a bucket's due date paid by hand, or pass undefined to unmark it. */
+  markBucketPaid: (bucketId: string, dueOn: string | undefined) => void;
   addIncome: (event: Omit<IncomeEvent, 'id' | 'allocation'>) => void;
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
   markReceived: (eventId: string) => void;
@@ -144,6 +153,7 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       completeSetup: () => dispatch({ type: 'completeSetup' }),
       loadDemo: () => dispatch({ type: 'loadDemo' }),
       addPurchase: (bucketId, amount) => dispatch({ type: 'addPurchase', bucketId, amount }),
+      markBucketPaid: (bucketId, dueOn) => dispatch({ type: 'markBucketPaid', bucketId, dueOn }),
       addIncome: (event) => dispatch({ type: 'addIncome', event }),
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),

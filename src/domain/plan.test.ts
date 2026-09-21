@@ -142,6 +142,11 @@ describe('bucket due dates', () => {
     expect(bucketDueStatus(rent, p2, '2026-10-12')).toBeNull();
   });
 
+  it('treats a due date marked paid by hand as paid, for that date only', () => {
+    expect(bucketDueStatus({ ...rent, paidOn: '2026-10-01' }, p1, '2026-10-03')).toMatchObject({ paid: true, overdue: false });
+    expect(bucketDueStatus({ ...rent, paidOn: '2026-10-01' }, p3, '2026-11-02')).toMatchObject({ dueOn: '2026-11-01', paid: false, overdue: true });
+  });
+
   it('formats ordinals', () => {
     expect(['1', '2', '3', '4', '11', '12', '13', '21', '22', '23', '31'].map((d) => ordinalDay(Number(d)))).toEqual([
       '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', 'last day',

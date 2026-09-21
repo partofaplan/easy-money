@@ -13,7 +13,7 @@ import { AheadPanel, SmoothingCard } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
-  const { data, addPurchase } = useStore();
+  const { data, addPurchase, markBucketPaid } = useStore();
   const desktop = useMediaQuery(DESKTOP);
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
@@ -166,9 +166,17 @@ export function Home() {
         </div>
       )}
       <div className="buckets" style={{ marginTop: 12 }}>
-        {data.buckets.map((b) => (
-          <BucketRow key={b.id} bucket={b} due={period ? bucketDueStatus(b, period, now) : null} />
-        ))}
+        {data.buckets.map((b) => {
+          const due = period ? bucketDueStatus(b, period, now) : null;
+          return (
+            <BucketRow
+              key={b.id}
+              bucket={b}
+              due={due}
+              onMarkPaid={due ? (paid) => markBucketPaid(b.id, paid ? due.dueOn : undefined) : undefined}
+            />
+          );
+        })}
         <Link to="/app/buckets" className="bucket-add" style={{ textDecoration: 'none' }}>
           <Icon name="plus" size={16} strokeWidth={2.6} />
           Edit buckets

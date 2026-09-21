@@ -213,10 +213,7 @@ export function dueDateInPeriod(dueDay: number | null | undefined, period: PayPe
 export interface DueStatus {
   /** ISO date the payment is due within the paycheck. */
   dueOn: string;
-  /**
-   * True once the bucket has been spent up to its planned amount. A heuristic:
-   * the POC has no "mark as paid" signal yet.
-   */
+  /** True once spending reaches the planned amount, or the user marked this due date paid. */
   paid: boolean;
   /** True when the due date has passed and it is not paid. */
   overdue: boolean;
@@ -226,16 +223,18 @@ export interface DueStatus {
 export function bucketDueStatus(bucket: Bucket, period: PayPeriod, todayISO: string): DueStatus | null {
   const dueOn = dueDateInPeriod(bucket.dueDay, period);
   if (!dueOn) return null;
-  const paid = bucket.planned > 0 && bucket.spent >= bucket.planned;
+  const paid = bucket.paidOn === dueOn || (bucket.planned > 0 && bucket.spent >= bucket.planned);
   return { dueOn, paid, overdue: !paid && todayISO > dueOn };
 }
 
 /** Buckets whose due day falls in a paycheck, with the date. Valid for any paycheck. */
 export function dueDatesInPeriod(buckets: Bucket[], period: PayPeriod): { bucket: Bucket; dueOn: string }[] {
-  return buckets.flatMap((bucket) => {
-    const dueOn = dueDateInPeriod(bucket.dueDay, period);
-    return dueOn ? [{ bucket, dueOn }] : [];
-  });
+  return buckets
+    .flatMap((bucket) => {
+      const dueOn = dueDateInPeriod(bucket.dueDay, period);
+      return dueOn ? [{ bucket, dueOn }] : [];
+    })
+    .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
 }
 
 /**
@@ -243,8 +242,10 @@ export function dueDatesInPeriod(buckets: Bucket[], period: PayPeriod): { bucket
  * paycheck, so paid/overdue only mean something for the paycheck in progress.
  */
 export function bucketsDueInPeriod(buckets: Bucket[], period: PayPeriod, todayISO: string): { bucket: Bucket; due: DueStatus }[] {
-  return buckets.flatMap((bucket) => {
-    const due = bucketDueStatus(bucket, period, todayISO);
-    return due ? [{ bucket, due }] : [];
-  });
+  return buckets
+    .flatMap((bucket) => {
+      const due = bucketDueStatus(bucket, period, todayISO);
+      return due ? [{ bucket, due }] : [];
+    })
+    .sort((a, b) => a.due.dueOn.localeCompare(b.due.dueOn));
 }

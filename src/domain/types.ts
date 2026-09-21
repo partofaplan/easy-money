@@ -30,6 +30,8 @@ export interface Bucket {
    * older stored data keeps working; absent means no due date.
    */
   dueDay?: number;
+  /** ISO due date the user marked as paid by hand, when spending alone would not show it. */
+  paidOn?: string;
 }
 
 export interface Bill {
