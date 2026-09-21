@@ -202,6 +202,17 @@ describe('hourly pay plans', () => {
     expect(plan.takeHome).toBeGreaterThan(0);
   });
 
+  it('re-nets stored plans when the rate or taxes change', () => {
+    const stored = [{ payday: '2026-10-10', takeHome: 999, hours: 60, allocations: {} }];
+    const before = planFor('2026-10-10', stored, buckets, hourly).takeHome;
+    expect(before).toBe(takeHomeForHours(hourly, 60));
+    const raise = { ...hourly, hourlyRate: 30 };
+    expect(planFor('2026-10-10', stored, buckets, raise).takeHome).toBeGreaterThan(before);
+    expect(takeHomeFor('2026-10-10', raise, stored, null)).toBe(planFor('2026-10-10', stored, buckets, raise).takeHome);
+    // A salaried plan keeps the amount typed into it.
+    expect(planFor('2026-10-10', stored, buckets, DEMO_DATA.answers).takeHome).toBe(999);
+  });
+
   it('falls back to the fixed amount for salaried pay', () => {
     expect(takeHomeForHours(DEMO_DATA.answers, 80)).toBe(2140);
     expect(planFor('2026-10-24', [], buckets, DEMO_DATA.answers).hours).toBeUndefined();

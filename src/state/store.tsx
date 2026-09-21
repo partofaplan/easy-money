@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { defaultTakeHome, fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
 import { newId } from '../lib/money';
 import type { Repository } from './repository';
@@ -42,7 +42,7 @@ export function reducer(state: AppData, action: Action): AppData {
       return { ...state, buckets: action.buckets };
 
     case 'completeSetup': {
-      const paycheck = state.answers.paycheckAmount ?? 0;
+      const paycheck = defaultTakeHome(state.answers);
       const base = state.buckets.length > 0 ? state.buckets : suggestBuckets(paycheck);
       const buckets = state.buckets.length > 0 ? rescaleBuckets(base, paycheck) : base;
       return {

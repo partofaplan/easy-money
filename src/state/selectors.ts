@@ -1,4 +1,4 @@
-import { buildOutlook, extraForPayday, type PeriodSummary } from '../domain/plan';
+import { buildOutlook, defaultTakeHome, extraForPayday, type PeriodSummary } from '../domain/plan';
 import type { IncomeEvent, PayPeriod } from '../domain/types';
 import { useStore } from './store';
 
@@ -43,7 +43,7 @@ export function useCurrentPaycheck(): CurrentPaycheck {
   const { data } = useStore();
   const period = useOutlook()[0]?.period ?? null;
   const confirmed = !!period && data.deposit?.payday === period.payday;
-  const takeHome = period?.takeHome ?? data.answers.paycheckAmount ?? 0;
+  const takeHome = period?.takeHome ?? defaultTakeHome(data.answers);
   const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
   const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
   const available = takeHome + extra;

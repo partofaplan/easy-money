@@ -35,7 +35,7 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
 
   const setAllocation = (id: string, amount: number | null) => setPlan({ ...plan, allocations: { ...plan.allocations, [id]: amount ?? 0 } });
   const useDefaults = () => setPlan({ ...plan, allocations: Object.fromEntries(buckets.map((b) => [b.id, b.defaultAmount])) });
-  const copyPrevious = () => previous && setPlan({ ...plan, takeHome: previous.takeHome, allocations: { ...previous.allocations } });
+  const copyPrevious = () => previous && setPlan({ ...plan, takeHome: previous.takeHome, hours: previous.hours, allocations: { ...previous.allocations } });
 
   return (
     <section className="card stack" style={{ gap: 12, borderColor: current ? 'var(--accent)' : undefined, borderWidth: current ? 1.5 : 1 }} aria-labelledby={`plan-${plan.payday}`}>
@@ -67,7 +67,7 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
           <MoneyInput
             id={`hours-${plan.payday}`}
             value={plan.hours ?? null}
-            onChange={(v) => setPlan({ ...plan, hours: v ?? 0, takeHome: takeHomeForHours(data.answers, v ?? 0) })}
+            onChange={(v) => setPlan({ ...plan, hours: v ?? undefined, takeHome: takeHomeForHours(data.answers, v ?? data.answers.typicalHours ?? 0) })}
             prefix=""
             unit="hrs"
           />

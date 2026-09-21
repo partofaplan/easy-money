@@ -16,6 +16,8 @@ export function Estimate() {
   const a = data.answers;
   const frequency = a.payFrequency ?? 'biweekly';
   const hourly = a.payType === 'hourly';
+  // After setup this page is reached from the app; go back there, not through setup again.
+  const done = data.setupComplete ? '/app/plan' : '/setup/ready';
 
   const [gross, setGross] = useState<number | null>(hourly ? a.hourlyRate : null);
   const [unit, setUnit] = useState<'year' | 'hour'>(hourly ? 'hour' : 'year');
@@ -53,7 +55,7 @@ export function Estimate() {
       step={null}
       wide
       stepLabel="Optional · Take-home estimate"
-      backTo="/setup/ready"
+      backTo={done}
       title="Let's work out what actually lands in your account."
       lead="Your pay stub has all of this. A close guess works too."
       why={`We apply the ${TAX_YEAR} federal brackets and standard deduction, Social Security and Medicare, a state rate, and anything taken out before taxes. It's an estimate, not a filing.`}
@@ -200,7 +202,7 @@ export function Estimate() {
                         ? { paycheckAmount: rounded, tax: taxSettings, payType: 'hourly', hourlyRate: gross, typicalHours: hours }
                         : { paycheckAmount: rounded, tax: taxSettings, payType: 'salary' },
                     );
-                    navigate('/setup/ready');
+                    navigate(done);
                   }}
                 >
                   {unit === 'hour' ? `Use ${fmt(rounded)} for ${hours} hours` : `Use ${fmt(rounded)} in my budget`}
@@ -211,7 +213,7 @@ export function Estimate() {
                   onClick={() => {
                     // Keep the tax details even when the number itself is not used.
                     answer({ tax: taxSettings });
-                    navigate('/setup/ready');
+                    navigate(done);
                   }}
                 >
                   Keep my own number

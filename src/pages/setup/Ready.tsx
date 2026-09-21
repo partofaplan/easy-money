@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import { SetupFrame } from '../../components/SetupFrame';
-import { FREQUENCY_LABEL, horizonCount, isHourly, takeHomeForHours } from '../../domain/plan';
+import { defaultTakeHome, FREQUENCY_LABEL, horizonCount, isHourly } from '../../domain/plan';
 import { STATE_TAXES } from '../../data/taxTables';
 import { fmtWeekday } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -14,7 +14,7 @@ export function Ready() {
   const a = data.answers;
   const paycheck = a.paycheckAmount;
   const hourly = a.payType === 'hourly';
-  const hourlyNet = isHourly(a) && a.typicalHours ? takeHomeForHours(a, a.typicalHours) : 0;
+  const hourlyNet = isHourly(a) && a.typicalHours ? defaultTakeHome(a) : 0;
   const stateName = STATE_TAXES.find((s) => s.code === a.tax?.stateCode)?.name;
   const taxSummary = a.tax
     ? `${stateName ? `${stateName}, ` : 'federal taxes only, '}${a.tax.filing === 'single' ? 'single' : a.tax.filing === 'married' ? 'married filing jointly' : 'head of household'}${a.tax.retirementPct || a.tax.healthPerPaycheck ? ', with your deductions' : ''}`
@@ -110,28 +110,11 @@ export function Ready() {
             <div className="grid-2">
               <div className="field">
                 <label htmlFor="rate">Pay per hour</label>
-                <MoneyInput
-                  id="rate"
-                  value={a.hourlyRate}
-                  onChange={(v) => {
-                    const next = { ...a, hourlyRate: v };
-                    answer({ hourlyRate: v, paycheckAmount: v && a.typicalHours ? takeHomeForHours(next, a.typicalHours) : null });
-                  }}
-                  unit="/ hr"
-                />
+                <MoneyInput id="rate" value={a.hourlyRate} onChange={(v) => answer({ hourlyRate: v })} unit="/ hr" />
               </div>
               <div className="field">
                 <label htmlFor="hours">Hours in a typical paycheck</label>
-                <MoneyInput
-                  id="hours"
-                  value={a.typicalHours}
-                  onChange={(v) => {
-                    const next = { ...a, typicalHours: v };
-                    answer({ typicalHours: v, paycheckAmount: v && a.hourlyRate ? takeHomeForHours(next, v) : null });
-                  }}
-                  prefix=""
-                  unit="hrs"
-                />
+                <MoneyInput id="hours" value={a.typicalHours} onChange={(v) => answer({ typicalHours: v })} prefix="" unit="hrs" />
               </div>
             </div>
             <div className="card tint stack" style={{ gap: 4, padding: '12px 14px', borderRadius: 12 }}>
