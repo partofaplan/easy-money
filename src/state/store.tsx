@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, Reserve } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { hasMonthlyTarget, nextPayday, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
 import { newId } from '../lib/money';
 import { LocalStorageRepository, type Repository } from './repository';
@@ -27,6 +27,7 @@ export type Action =
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
   | { type: 'markReceived'; eventId: string }
   | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
+  | { type: 'startNextPaycheck' }
   | { type: 'reset' };
 
 export function reducer(state: AppData, action: Action): AppData {
@@ -113,6 +114,20 @@ export function reducer(state: AppData, action: Action): AppData {
     case 'addReserves':
       return { ...state, reserves: [...state.reserves, ...action.reserves.map((r) => ({ ...r, id: newId('res') }))] };
 
+    case 'startNextPaycheck': {
+      const { payFrequency, nextPayday: payday } = state.answers;
+      if (!payFrequency || !payday) return state;
+      return {
+        ...state,
+        answers: { ...state.answers, nextPayday: nextPayday(payday, payFrequency) },
+        // Envelopes with a monthly target carry what was set aside and not paid out;
+        // every bucket starts the new paycheck with nothing spent.
+        buckets: state.buckets.map((b) =>
+          hasMonthlyTarget(b) ? { ...b, balance: Math.max(0, (b.balance ?? 0) + b.planned - b.spent), spent: 0 } : { ...b, spent: 0 },
+        ),
+      };
+    }
+
     case 'reset':
       return initialData;
   }
@@ -131,6 +146,8 @@ interface Store {
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
   markReceived: (eventId: string) => void;
   addReserves: (reserves: Omit<Reserve, 'id'>[]) => void;
+  /** Move to the next payday: carry envelope balances forward and reset spending. */
+  startNextPaycheck: () => void;
   reset: () => void;
 }
 
@@ -158,6 +175,7 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
       addReserves: (reserves) => dispatch({ type: 'addReserves', reserves }),
+      startNextPaycheck: () => dispatch({ type: 'startNextPaycheck' }),
       reset: () => {
         repository.clear();
         dispatch({ type: 'reset' });

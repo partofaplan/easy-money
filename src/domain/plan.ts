@@ -5,6 +5,7 @@
  */
 import type { Answers, Bill, Bucket, IncomeEvent, PayFrequency, PayPeriod, PlanningHorizon, Reserve } from './types';
 import { STARTER_BUCKETS } from '../data/fixtures';
+import { PAYCHECKS_PER_YEAR } from '../data/taxTables';
 import { addDays, addMonths, parseISO, toISO } from '../lib/dates';
 import { roundTo } from '../lib/money';
 
@@ -223,7 +224,8 @@ export interface DueStatus {
 export function bucketDueStatus(bucket: Bucket, period: PayPeriod, todayISO: string): DueStatus | null {
   const dueOn = dueDateInPeriod(bucket.dueDay, period);
   if (!dueOn) return null;
-  const paid = bucket.paidOn === dueOn || (bucket.planned > 0 && bucket.spent >= bucket.planned);
+  const need = bucket.monthlyTarget ?? bucket.planned;
+  const paid = bucket.paidOn === dueOn || (need > 0 && bucket.spent >= need);
   return { dueOn, paid, overdue: !paid && todayISO > dueOn };
 }
 
@@ -248,4 +250,53 @@ export function bucketsDueInPeriod(buckets: Bucket[], period: PayPeriod, todayIS
       return due ? [{ bucket, due }] : [];
     })
     .sort((a, b) => a.due.dueOn.localeCompare(b.due.dueOn));
+}
+
+/** Paychecks in a typical month for a pay frequency: how many a monthly bill can be split across. */
+export function paychecksPerMonth(frequency: PayFrequency): number {
+  return Math.max(1, Math.round(PAYCHECKS_PER_YEAR[frequency] / 12));
+}
+
+/** Even per-paycheck set-aside for a monthly amount spread across `over` paychecks. */
+export function suggestedSetAside(monthlyTarget: number, over: number): number {
+  return Math.ceil(monthlyTarget / Math.max(1, over));
+}
+
+/** One paycheck's step in saving toward a bucket's monthly target. */
+export interface FundingStep {
+  payday: string;
+  /** Set aside from this paycheck. */
+  setAside: number;
+  /** In the envelope after this paycheck's set-aside, before any payment. */
+  ready: number;
+  /** ISO date the bill is due within this paycheck, if any. */
+  dueOn: string | null;
+  /** Amount still missing on the due date; 0 when the envelope covers it. */
+  short: number;
+  /** Left in the envelope after paying the bill (or carried forward if none is due). */
+  carried: number;
+}
+
+/**
+ * Project how a bucket with a monthly target fills up and pays out across the
+ * given paychecks. Set-aside happens on payday, before any due date in that
+ * paycheck. `spentSoFar` is what the current paycheck has already paid.
+ */
+export function projectFunding(bucket: Bucket, periods: PayPeriod[]): FundingStep[] {
+  const target = bucket.monthlyTarget ?? 0;
+  let carried = bucket.balance ?? 0;
+  return periods.map((period, i) => {
+    const setAside = bucket.planned;
+    const ready = carried + setAside;
+    const dueOn = dueDateInPeriod(bucket.dueDay, period);
+    const alreadyPaid = i === 0 && dueOn !== null && (bucket.paidOn === dueOn || bucket.spent >= target);
+    const short = dueOn && !alreadyPaid ? Math.max(0, target - ready) : 0;
+    carried = dueOn ? Math.max(0, ready - target) : ready;
+    return { payday: period.payday, setAside, ready, dueOn, short, carried };
+  });
+}
+
+/** True for buckets saved for across paychecks toward a monthly bill. */
+export function hasMonthlyTarget(bucket: Bucket): bucket is Bucket & { monthlyTarget: number } {
+  return typeof bucket.monthlyTarget === 'number' && bucket.monthlyTarget > 0;
 }

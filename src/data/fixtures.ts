@@ -17,15 +17,13 @@ export const STARTER_BUCKETS: ReadonlyArray<{ id: string; name: string; share: n
   { id: 'other', name: 'Everything else', share: 0.065, kind: 'spending' },
 ];
 
-/** Sample bills used to populate the Ahead view. Dates are relative to the demo payday. */
+/** Sample bills used to populate the Ahead view. Rent is modelled as a bucket with a monthly target instead. */
 export const SAMPLE_BILLS: Bill[] = [
-  { id: 'rent-oct', name: 'Rent', amount: 950, dueDate: '2026-10-01' },
   { id: 'phone-oct', name: 'Phone', amount: 65, dueDate: '2026-10-03' },
   { id: 'car-ins', name: 'Car insurance', amount: 180, dueDate: '2026-10-15' },
   { id: 'electric', name: 'Electric', amount: 110, dueDate: '2026-10-18' },
   { id: 'internet', name: 'Internet', amount: 70, dueDate: '2026-10-20' },
   { id: 'card', name: 'Credit card', amount: 240, dueDate: '2026-10-28' },
-  { id: 'rent-nov', name: 'Rent', amount: 950, dueDate: '2026-11-01' },
 ];
 
 export const SAMPLE_BONUS: IncomeEvent = {
@@ -60,7 +58,8 @@ export const DEMO_DATA: AppData = {
     paycheckAmount: 2140,
   },
   buckets: [
-    { id: 'housing', name: 'Rent & housing', planned: 950, spent: 950, kind: 'spending', dueDay: 1 },
+    // Rent is due on the 1st and saved for across two paychecks: $950 from each.
+    { id: 'housing', name: 'Rent & housing', planned: 950, spent: 0, kind: 'spending', dueDay: 1, monthlyTarget: 1900, fundOver: 2, balance: 950 },
     { id: 'groceries', name: 'Groceries', planned: 260, spent: 84, kind: 'spending' },
     { id: 'bills', name: 'Bills & utilities', planned: 210, spent: 65, kind: 'spending', dueDay: 3 },
     { id: 'transport', name: 'Getting around', planned: 140, spent: 38, kind: 'spending' },

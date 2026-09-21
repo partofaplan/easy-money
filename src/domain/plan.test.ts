@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   bucketDueStatus,
   dueDateInPeriod,
+  paychecksPerMonth,
+  projectFunding,
+  suggestedSetAside,
   extraTotalForPayday,
   horizonCount,
   nextPayday,
@@ -12,7 +15,14 @@ import {
   summarizePeriod,
 } from './plan';
 import { ordinalDay } from '../lib/dates';
-import { SAMPLE_BILLS } from '../data/fixtures';
+import { SAMPLE_BILLS as DEMO_BILLS } from '../data/fixtures';
+
+// The demo no longer lists rent as a bill (it is an envelope now); these tests keep it for tightness.
+const SAMPLE_BILLS = [
+  ...DEMO_BILLS,
+  { id: 'rent-oct', name: 'Rent', amount: 950, dueDate: '2026-10-01' },
+  { id: 'rent-nov', name: 'Rent', amount: 950, dueDate: '2026-11-01' },
+];
 
 describe('nextPayday', () => {
   it('steps by frequency', () => {
@@ -151,5 +161,45 @@ describe('bucket due dates', () => {
     expect(['1', '2', '3', '4', '11', '12', '13', '21', '22', '23', '31'].map((d) => ordinalDay(Number(d)))).toEqual([
       '1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', 'last day',
     ]);
+  });
+});
+
+describe('saving for a monthly bill across paychecks', () => {
+  const periods = payPeriods('2026-09-26', 'biweekly', 2140, 3);
+  const rent = { id: 'housing', name: 'Rent', planned: 950, spent: 0, kind: 'spending' as const, dueDay: 1, monthlyTarget: 1900, fundOver: 2, balance: 950 };
+
+  it('knows how many paychecks a month holds', () => {
+    expect(paychecksPerMonth('weekly')).toBe(4);
+    expect(paychecksPerMonth('biweekly')).toBe(2);
+    expect(paychecksPerMonth('semimonthly')).toBe(2);
+    expect(paychecksPerMonth('monthly')).toBe(1);
+    expect(suggestedSetAside(1900, 2)).toBe(950);
+    expect(suggestedSetAside(1000, 3)).toBe(334);
+  });
+
+  it('fills the envelope each payday and pays it out on the due date', () => {
+    const steps = projectFunding(rent, periods);
+    expect(steps.map((s) => [s.ready, s.dueOn, s.short, s.carried])).toEqual([
+      [1900, '2026-10-01', 0, 0],
+      [950, null, 0, 950],
+      [1900, '2026-11-01', 0, 0],
+    ]);
+  });
+
+  it('flags a shortfall when the envelope will not be full by the due date', () => {
+    const steps = projectFunding({ ...rent, balance: 0 }, periods);
+    expect(steps[0]).toMatchObject({ ready: 950, short: 950, carried: 0 });
+    expect(steps[2]).toMatchObject({ ready: 1900, short: 0 });
+  });
+
+  it('does not count a bill already paid this paycheck as short', () => {
+    const steps = projectFunding({ ...rent, balance: 0, spent: 1900 }, periods);
+    expect(steps[0].short).toBe(0);
+  });
+
+  it('marks the envelope paid once spending reaches the monthly amount, not the set-aside', () => {
+    const p1 = periods[0];
+    expect(bucketDueStatus({ ...rent, spent: 950 }, p1, '2026-09-27')?.paid).toBe(false);
+    expect(bucketDueStatus({ ...rent, spent: 1900 }, p1, '2026-09-27')?.paid).toBe(true);
   });
 });

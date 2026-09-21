@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
-import { bucketsDueInPeriod, dueDatesInPeriod, suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
+import { bucketsDueInPeriod, dueDatesInPeriod, hasMonthlyTarget, projectFunding, suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
 import type { Bucket } from '../../domain/types';
 import { fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -69,6 +69,9 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
     );
   }
 
+  const periods = summaries.map((x) => x.period);
+  const funding = buckets.filter(hasMonthlyTarget).map((b) => ({ bucket: b, steps: projectFunding(b, periods) }));
+
   return (
     <div className="stack">
       {summaries.map((s, i) => (
@@ -120,6 +123,21 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
                 {bucket.name} due {fmtShort(dueOn)}
               </div>
             ))}
+            {funding.map(({ bucket, steps }) => {
+              const step = steps[i];
+              return (
+                <div key={bucket.id} className="between small" style={{ color: step.short > 0 ? 'var(--warn-text)' : 'var(--muted)', fontWeight: step.short > 0 ? 700 : 400 }}>
+                  <span className="row" style={{ gap: 6 }}>
+                    <Icon name="wallet" size={14} />
+                    {step.dueOn
+                      ? step.short > 0
+                        ? `${bucket.name}: ${fmt(step.ready)} ready, short ${fmt(step.short)} for ${fmtShort(step.dueOn)}`
+                        : `${bucket.name}: ${fmt(step.ready)} ready for ${fmtShort(step.dueOn)}`
+                      : `${bucket.name}: +${fmt(step.setAside)} set aside, ${fmt(step.ready)} of ${fmt(bucket.monthlyTarget)}`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

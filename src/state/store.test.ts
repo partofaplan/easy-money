@@ -29,3 +29,23 @@ describe('reducer: extra money', () => {
     expect(e.allocation).toEqual({ kind: 'paycheck', payday: '2026-10-10' });
   });
 });
+
+describe('reducer: next paycheck', () => {
+  it('advances the payday, carries envelope balances and resets spending', () => {
+    const before = demo();
+    const state = reducer(before, { type: 'startNextPaycheck' });
+    expect(state.answers.nextPayday).toBe('2026-10-10');
+    const rent = state.buckets.find((b) => b.id === 'housing')!;
+    expect(rent.balance).toBe(950 + 950);
+    expect(rent.spent).toBe(0);
+    const groceries = state.buckets.find((b) => b.id === 'groceries')!;
+    expect(groceries.spent).toBe(0);
+    expect(groceries.balance).toBeUndefined();
+  });
+
+  it('pays the envelope out before carrying the rest', () => {
+    const paid = reducer(demo(), { type: 'addPurchase', bucketId: 'housing', amount: 1900 });
+    const state = reducer(paid, { type: 'startNextPaycheck' });
+    expect(state.buckets.find((b) => b.id === 'housing')?.balance).toBe(0);
+  });
+});
