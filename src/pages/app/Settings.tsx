@@ -62,7 +62,7 @@ export function Settings() {
               <Icon name="chevronRight" />
             </span>
           </Link>
-          <Link to="/profiles" className="list-row between">
+          <Link to="/profiles?add=1" className="list-row between">
             <span style={{ fontWeight: 700, fontSize: 15 }}>Add a profile</span>
             <span className="muted">
               <Icon name="plus" />

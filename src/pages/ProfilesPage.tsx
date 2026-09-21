@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
 import { useProfiles } from '../state/profileContext';
@@ -8,11 +8,13 @@ import { useProfiles } from '../state/profileContext';
 export function ProfilesPage() {
   const { profiles, active, create, switchTo } = useProfiles();
   const navigate = useNavigate();
-  const [adding, setAdding] = useState(profiles.length === 0);
+  const [params] = useSearchParams();
+  const [adding, setAdding] = useState(profiles.length === 0 || params.get('add') === '1');
   const [name, setName] = useState('');
+  const duplicate = profiles.some((p) => p.name.toLowerCase() === name.trim().toLowerCase());
 
   const submit = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || duplicate) return;
     create(name);
     setName('');
     setAdding(false);
@@ -71,8 +73,13 @@ export function ProfilesPage() {
                 <input id="profile-name" value={name} autoFocus placeholder="Your first name" onChange={(e) => setName(e.target.value)} />
               </div>
             </div>
+            {duplicate && (
+              <span className="small" style={{ color: 'var(--warn-text)', fontWeight: 700 }}>
+                There is already a profile called {name.trim()}. Pick another name.
+              </span>
+            )}
             <div className="row">
-              <button type="submit" className="btn btn-primary" style={{ minHeight: 48 }} disabled={!name.trim()}>
+              <button type="submit" className="btn btn-primary" style={{ minHeight: 48 }} disabled={!name.trim() || duplicate}>
                 {profiles.length === 0 ? "Let's go" : 'Add profile'}
               </button>
               {profiles.length > 0 && (
