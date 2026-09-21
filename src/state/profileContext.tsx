@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { activate, activeProfile, addProfile, ProfileRegistry, removeProfile, renameProfile, type Profile, type ProfileIndex } from './profiles';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { activate, activeProfile, addProfile, emptyIndex, ProfileRegistry, removeProfile, renameProfile, type Profile, type ProfileIndex } from './profiles';
 
 interface ProfilesCtx {
   profiles: Profile[];
@@ -17,28 +17,32 @@ const registry = new ProfileRegistry();
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [index, setIndex] = useState<ProfileIndex>(() => registry.load());
 
-  const update = useCallback((next: ProfileIndex) => {
-    registry.save(next);
-    setIndex(next);
+  // Persist whatever the latest index is, however it got there.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    registry.save(index);
+  }, [index]);
+
+  // Every action works from the latest index, so two changes in one tick both land.
+  const create = useCallback((name: string) => {
+    const { profile } = addProfile(emptyIndex, name);
+    setIndex((prev) => ({ profiles: [...prev.profiles, profile], activeId: profile.id }));
+    return profile;
+  }, []);
+  const switchTo = useCallback((id: string) => setIndex((prev) => activate(prev, id)), []);
+  const rename = useCallback((id: string, name: string) => setIndex((prev) => renameProfile(prev, id, name)), []);
+  const remove = useCallback((id: string) => {
+    registry.purge(id);
+    setIndex((prev) => removeProfile(prev, id));
   }, []);
 
   const value = useMemo<ProfilesCtx>(
-    () => ({
-      profiles: index.profiles,
-      active: activeProfile(index),
-      create: (name) => {
-        const { index: next, profile } = addProfile(index, name);
-        update(next);
-        return profile;
-      },
-      switchTo: (id) => update(activate(index, id)),
-      rename: (id, name) => update(renameProfile(index, id, name)),
-      remove: (id) => {
-        registry.purge(id);
-        update(removeProfile(index, id));
-      },
-    }),
-    [index, update],
+    () => ({ profiles: index.profiles, active: activeProfile(index), create, switchTo, rename, remove }),
+    [index, create, switchTo, rename, remove],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

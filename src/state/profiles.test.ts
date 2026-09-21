@@ -25,9 +25,12 @@ describe('profile index', () => {
     expect(activate(switched, 'nope')).toBe(switched);
     expect(renameProfile(switched, a.profile.id, '   ')).toBe(switched);
     expect(activeProfile(renameProfile(switched, a.profile.id, 'Z'))?.name).toBe('Z');
+    // Deleting the open profile leaves nobody open: the picker decides, not the app.
     const removed = removeProfile(switched, a.profile.id);
     expect(removed.profiles).toHaveLength(1);
-    expect(removed.activeId).toBe(b.profile.id);
+    expect(removed.activeId).toBeNull();
+    // Deleting another profile keeps the open one.
+    expect(removeProfile(switched, b.profile.id).activeId).toBe(a.profile.id);
     expect(removeProfile(removed, b.profile.id)).toEqual(emptyIndex);
   });
 
@@ -50,6 +53,17 @@ describe('ProfileRegistry', () => {
     expect(storage.getItem(`easy-money.theme.${id}`)).toBe('dark');
     expect(storage.getItem('easy-money.data')).toBeNull();
     expect(JSON.parse(storage.getItem(PROFILES_KEY)!).activeId).toBe(id);
+  });
+
+  it('leaves a pre-profile budget in place when the copy fails', () => {
+    const storage = new MemoryStorage();
+    storage.setItem('easy-money.data', '{"version":3}');
+    storage.setItem = (k: string, v: string) => {
+      if (k.startsWith('easy-money.data.')) throw new Error('quota');
+      storage.map.set(k, v);
+    };
+    expect(new ProfileRegistry(storage).load()).toEqual(emptyIndex);
+    expect(storage.getItem('easy-money.data')).toBe('{"version":3}');
   });
 
   it('starts empty and round-trips', () => {

@@ -29,7 +29,8 @@ function RequireSetup({ children }: { children: JSX.Element }) {
 
 export function App() {
   const { active } = useProfiles();
-  const repository = useMemo(() => (active ? new LocalStorageRepository(dataKey(active.id)) : null), [active]);
+  const activeId = active?.id ?? null;
+  const repository = useMemo(() => (activeId ? new LocalStorageRepository(dataKey(activeId)) : null), [activeId]);
 
   if (!active || !repository) {
     return (
@@ -41,10 +42,11 @@ export function App() {
     );
   }
 
-  // Keyed by profile so switching remounts the store and theme with that profile's data.
+  // Both providers are keyed by profile so switching remounts them with that
+  // profile's data; neither relies on the other for isolation.
   return (
-    <ThemeProvider key={active.id} storageKey={themeKey(active.id)}>
-      <StoreProvider repository={repository}>
+    <ThemeProvider key={`theme-${active.id}`} storageKey={themeKey(active.id)}>
+      <StoreProvider key={`store-${active.id}`} repository={repository}>
         <AppRoutes />
       </StoreProvider>
     </ThemeProvider>

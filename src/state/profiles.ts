@@ -41,11 +41,12 @@ export function activate(index: ProfileIndex, id: string): ProfileIndex {
   return index.profiles.some((p) => p.id === id) ? { ...index, activeId: id } : index;
 }
 
-/** Remove a profile. If it was active, the first remaining profile becomes active. */
+/** Remove a profile. If it was the active one, nobody is active until the user picks again. */
 export function removeProfile(index: ProfileIndex, id: string): ProfileIndex {
-  const profiles = index.profiles.filter((p) => p.id !== id);
-  const activeId = index.activeId === id ? (profiles[0]?.id ?? null) : index.activeId;
-  return { profiles, activeId };
+  return {
+    profiles: index.profiles.filter((p) => p.id !== id),
+    activeId: index.activeId === id ? null : index.activeId,
+  };
 }
 
 export function activeProfile(index: ProfileIndex): Profile | null {
@@ -102,14 +103,14 @@ export class ProfileRegistry {
     const data = this.storage.getItem(LEGACY_DATA_KEY);
     if (!data) return emptyIndex;
     const { index, profile } = addProfile(emptyIndex, 'My budget');
-    this.storage.setItem(dataKey(profile.id), data);
-    this.storage.removeItem(LEGACY_DATA_KEY);
     const theme = this.storage.getItem(LEGACY_THEME_KEY);
-    if (theme) {
-      this.storage.setItem(themeKey(profile.id), theme);
-      this.storage.removeItem(LEGACY_THEME_KEY);
-    }
-    this.save(index);
+    // Copy first and write the index before touching the old keys, so a failed
+    // write leaves the pre-profile budget where it was.
+    this.storage.setItem(dataKey(profile.id), data);
+    if (theme) this.storage.setItem(themeKey(profile.id), theme);
+    this.storage.setItem(PROFILES_KEY, JSON.stringify(index));
+    this.storage.removeItem(LEGACY_DATA_KEY);
+    if (theme) this.storage.removeItem(LEGACY_THEME_KEY);
     return index;
   }
 }
