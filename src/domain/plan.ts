@@ -194,3 +194,58 @@ export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
   irregular: 'on a changing schedule',
 };
 
+/** The date in `period` on which a bucket with `dueDay` is due, or null if none falls inside it. */
+export function dueDateInPeriod(dueDay: number | null | undefined, period: PayPeriod): string | null {
+  if (!dueDay) return null;
+  const start = parseISO(period.payday);
+  const end = parseISO(period.end);
+  // Walk each month the period touches and see whether its due date lands inside.
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor <= end) {
+    const lastDay = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+    const candidate = toISO(new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(dueDay, lastDay)));
+    if (candidate >= period.payday && candidate <= period.end) return candidate;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return null;
+}
+
+export interface DueStatus {
+  /** ISO date the payment is due within the paycheck. */
+  dueOn: string;
+  /** True once spending reaches the planned amount, or the user marked this due date paid. */
+  paid: boolean;
+  /** True when the due date has passed and it is not paid. */
+  overdue: boolean;
+}
+
+/** Whether a bucket is due within a paycheck, and where it stands. */
+export function bucketDueStatus(bucket: Bucket, period: PayPeriod, todayISO: string): DueStatus | null {
+  const dueOn = dueDateInPeriod(bucket.dueDay, period);
+  if (!dueOn) return null;
+  const paid = bucket.paidOn === dueOn || (bucket.planned > 0 && bucket.spent >= bucket.planned);
+  return { dueOn, paid, overdue: !paid && todayISO > dueOn };
+}
+
+/** Buckets whose due day falls in a paycheck, with the date. Valid for any paycheck. */
+export function dueDatesInPeriod(buckets: Bucket[], period: PayPeriod): { bucket: Bucket; dueOn: string }[] {
+  return buckets
+    .flatMap((bucket) => {
+      const dueOn = dueDateInPeriod(bucket.dueDay, period);
+      return dueOn ? [{ bucket, dueOn }] : [];
+    })
+    .sort((a, b) => a.dueOn.localeCompare(b.dueOn));
+}
+
+/**
+ * Buckets due in the CURRENT paycheck, with status. `spent` is tracked per
+ * paycheck, so paid/overdue only mean something for the paycheck in progress.
+ */
+export function bucketsDueInPeriod(buckets: Bucket[], period: PayPeriod, todayISO: string): { bucket: Bucket; due: DueStatus }[] {
+  return buckets
+    .flatMap((bucket) => {
+      const due = bucketDueStatus(bucket, period, todayISO);
+      return due ? [{ bucket, due }] : [];
+    })
+    .sort((a, b) => a.due.dueOn.localeCompare(b.due.dueOn));
+}

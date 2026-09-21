@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
-import { suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
-import { fmtShort, fmtWeekday } from '../../lib/dates';
+import { Icon } from '../../components/Icon';
+import { bucketsDueInPeriod, dueDatesInPeriod, suggestSmoothing, type PeriodSummary, type Smoothing } from '../../domain/plan';
+import type { Bucket } from '../../domain/types';
+import { fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
 import { useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
@@ -27,7 +29,15 @@ export function SmoothingCard({ smoothing }: { smoothing: Smoothing }) {
   );
 }
 
-export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[]; compact?: boolean }) {
+/** Buckets to flag as due in a paycheck: everything with a due date, minus what is already paid in the current one. */
+function dueIn(buckets: Bucket[], s: PeriodSummary, isCurrent: boolean): { bucket: Bucket; dueOn: string }[] {
+  if (!isCurrent) return dueDatesInPeriod(buckets, s.period);
+  return bucketsDueInPeriod(buckets, s.period, today())
+    .filter((d) => !d.due.paid)
+    .map((d) => ({ bucket: d.bucket, dueOn: d.due.dueOn }));
+}
+
+export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodSummary[]; buckets: Bucket[]; compact?: boolean }) {
   if (compact) {
     return (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -37,7 +47,7 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
             See all
           </Link>
         </div>
-        {summaries.map((s) => (
+        {summaries.map((s, i) => (
           <div key={s.period.payday} className="between" style={{ padding: '10px 0', borderTop: '1px solid var(--divider)' }}>
             <span className="stack" style={{ gap: 0 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>{fmtWeekday(s.period.payday)}</span>
@@ -45,6 +55,12 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
                 {s.bills.length === 0 ? 'No bills due' : `${s.bills.map((b) => b.name).join(', ')} · ${fmt(s.billsTotal)} in bills`}
                 {s.extraTotal > 0 ? ` · +${fmt(s.extraTotal)} extra` : ''}
               </span>
+              {dueIn(buckets, s, i === 0).map(({ bucket, dueOn }) => (
+                <span key={bucket.id} className="due" style={{ fontSize: 12 }}>
+                  <Icon name="alert" size={12} strokeWidth={2.4} />
+                  {bucket.name} due {fmtShort(dueOn)}
+                </span>
+              ))}
             </span>
             <span className={`status ${s.status}`}>{s.status === 'covered' ? 'Covered' : 'Tight'}</span>
           </div>
@@ -98,6 +114,12 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
               <span>Left for buckets</span>
               <span style={{ fontWeight: 700 }}>{fmt(s.leftForBuckets)}</span>
             </div>
+            {dueIn(buckets, s, i === 0).map(({ bucket, dueOn }) => (
+              <div key={bucket.id} className="due" style={{ marginTop: 4 }}>
+                <Icon name="alert" size={14} strokeWidth={2.4} />
+                {bucket.name} due {fmtShort(dueOn)}
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -119,7 +141,7 @@ export function Ahead() {
           Bills are placed in the paycheck that pays them.
         </p>
       </div>
-      <AheadPanel summaries={outlook} />
+      <AheadPanel summaries={outlook} buckets={data.buckets} />
       {smoothing && <SmoothingCard smoothing={smoothing} />}
       {data.answers.horizon === 'this' && (
         <p className="small muted">

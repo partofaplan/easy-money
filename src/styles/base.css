@@ -781,6 +781,45 @@ p {
   border: 1px solid var(--border);
   border-radius: 14px;
 }
+.bucket-due {
+  border-color: var(--warn-border);
+}
+.due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--warn-text);
+}
+.due.overdue {
+  color: var(--clay);
+}
+.due.paid {
+  color: var(--accent);
+  font-weight: 600;
+}
+.bucket-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+}
+@media (min-width: 720px) {
+  .bucket-edit {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  /* Flatten the two phone rows into one line, with Remove at the end. */
+  .bucket-edit > .row {
+    display: contents;
+  }
+  .bucket-edit .icon-btn {
+    order: 9;
+  }
+}
 .bucket-add {
   display: flex;
   align-items: center;

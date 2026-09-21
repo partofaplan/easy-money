@@ -3,6 +3,7 @@ import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import type { Bucket } from '../../domain/types';
 import { extraTotalForPayday } from '../../domain/plan';
+import { ordinalDay } from '../../lib/dates';
 import { fmt, newId } from '../../lib/money';
 import { useCurrentPayday } from '../../state/selectors';
 import { useStore } from '../../state/store';
@@ -39,34 +40,51 @@ export function BucketsPage() {
 
       <div className="stack" style={{ gap: 8 }}>
         {list.map((b, i) => (
-          <div key={b.id} className="card row" style={{ padding: '10px 10px 10px 14px', flexWrap: 'wrap' }}>
-            <label htmlFor={`name-${b.id}`} className="sr-only">
-              Bucket {i + 1} name
-            </label>
-            <input
-              id={`name-${b.id}`}
-              className="grow"
-              style={{ border: 0, background: 'transparent', fontWeight: 700, fontSize: 16, minWidth: 140 }}
-              value={b.name}
-              onChange={(e) => patch(b.id, { name: e.target.value })}
-            />
-            <label htmlFor={`planned-${b.id}`} className="sr-only">
-              Planned for {b.name}
-            </label>
-            <div style={{ width: 140 }}>
-              <MoneyInput key={`${b.id}-${data.buckets.length}`} id={`planned-${b.id}`} value={b.planned} onChange={(v) => patch(b.id, { planned: v ?? 0 })} />
+          <div key={b.id} className="card bucket-edit">
+            <div className="row grow">
+              <label htmlFor={`name-${b.id}`} className="sr-only">
+                Bucket {i + 1} name
+              </label>
+              <input
+                id={`name-${b.id}`}
+                className="grow"
+                style={{ border: 0, background: 'transparent', fontWeight: 700, fontSize: 16, minWidth: 0 }}
+                value={b.name}
+                onChange={(e) => patch(b.id, { name: e.target.value })}
+              />
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={`Remove ${b.name}`}
+                onClick={() => {
+                  setSaved(false);
+                  setList((l) => l.filter((x) => x.id !== b.id));
+                }}
+              >
+                <Icon name="trash" />
+              </button>
             </div>
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={`Remove ${b.name}`}
-              onClick={() => {
-                setSaved(false);
-                setList((l) => l.filter((x) => x.id !== b.id));
-              }}
-            >
-              <Icon name="trash" />
-            </button>
+            <div className="row">
+              <label htmlFor={`planned-${b.id}`} className="sr-only">
+                Planned for {b.name}
+              </label>
+              <div className="grow" style={{ maxWidth: 150 }}>
+                <MoneyInput key={`${b.id}-${data.buckets.length}`} id={`planned-${b.id}`} value={b.planned} onChange={(v) => patch(b.id, { planned: v ?? 0 })} />
+              </div>
+              <label htmlFor={`due-${b.id}`} className="sr-only">
+                Due day for {b.name}
+              </label>
+              <div className="input grow" style={{ maxWidth: 170, padding: '0 10px' }}>
+                <select id={`due-${b.id}`} value={b.dueDay ?? ''} onChange={(e) => patch(b.id, { dueDay: e.target.value ? Number(e.target.value) : undefined })}>
+                  <option value="">No due date</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>
+                      Due the {ordinalDay(d)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         ))}
         <button
