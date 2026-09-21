@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, Reserve } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { dueDateInPeriod, envelopeOutflow, hasMonthlyTarget, nextPayday, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
+import { addDays } from '../lib/dates';
 import { newId } from '../lib/money';
 import { LocalStorageRepository, type Repository } from './repository';
 
@@ -27,6 +28,7 @@ export type Action =
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
   | { type: 'markReceived'; eventId: string }
   | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
+  | { type: 'startNextPaycheck' }
   | { type: 'reset' };
 
 export function reducer(state: AppData, action: Action): AppData {
@@ -113,6 +115,26 @@ export function reducer(state: AppData, action: Action): AppData {
     case 'addReserves':
       return { ...state, reserves: [...state.reserves, ...action.reserves.map((r) => ({ ...r, id: newId('res') }))] };
 
+    case 'startNextPaycheck': {
+      const { payFrequency, nextPayday: payday } = state.answers;
+      if (!payFrequency || !payday) return state;
+      const following = nextPayday(payday, payFrequency);
+      const period = { payday, end: addDays(following, -1), takeHome: 0 };
+      return {
+        ...state,
+        answers: { ...state.answers, nextPayday: following },
+        // Envelopes with a monthly target carry what was set aside and not paid out
+        // (a bill marked paid by hand counts as paid out). Every bucket starts the
+        // new paycheck with nothing spent and no hand-marked payment.
+        buckets: state.buckets.map((b) => {
+          const next = { ...b, spent: 0, paidOn: undefined };
+          if (!hasMonthlyTarget(b)) return next;
+          const billDue = dueDateInPeriod(b.dueDay, period) !== null;
+          return { ...next, balance: Math.max(0, (b.balance ?? 0) + b.planned - envelopeOutflow(b, billDue, true)) };
+        }),
+      };
+    }
+
     case 'reset':
       return initialData;
   }
@@ -131,6 +153,8 @@ interface Store {
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
   markReceived: (eventId: string) => void;
   addReserves: (reserves: Omit<Reserve, 'id'>[]) => void;
+  /** Move to the next payday: carry envelope balances forward and reset spending. */
+  startNextPaycheck: () => void;
   reset: () => void;
 }
 
@@ -158,6 +182,7 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
       addReserves: (reserves) => dispatch({ type: 'addReserves', reserves }),
+      startNextPaycheck: () => dispatch({ type: 'startNextPaycheck' }),
       reset: () => {
         repository.clear();
         dispatch({ type: 'reset' });

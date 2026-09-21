@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, hasMonthlyTarget, projectFunding, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -13,7 +13,7 @@ import { AheadPanel, SmoothingCard } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
-  const { data, addPurchase, markBucketPaid } = useStore();
+  const { data, addPurchase, markBucketPaid, startNextPaycheck } = useStore();
   const desktop = useMediaQuery(DESKTOP);
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
@@ -23,7 +23,8 @@ export function Home() {
   const period = outlook[0]?.period;
   const takeHome = data.answers.paycheckAmount ?? 0;
   const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
-  const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
+  // Paying a monthly bill out of its envelope is not overspending this paycheck.
+  const spent = data.buckets.reduce((s, b) => s + (hasMonthlyTarget(b) ? Math.min(b.spent, b.planned) : b.spent), 0);
   const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
   const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
@@ -147,6 +148,21 @@ export function Home() {
         </Link>
       )}
 
+      {period && (
+        <div className="between" style={{ marginTop: 10, padding: '0 4px' }}>
+          <span className="small muted">Paid again? Move on and carry your envelopes forward.</span>
+          <button
+            type="button"
+            className="link small"
+            onClick={() => {
+              if (window.confirm('Start the next paycheck? Envelope balances carry forward and this paycheck\'s spending resets.')) startNextPaycheck();
+            }}
+          >
+            Start the next paycheck
+          </button>
+        </div>
+      )}
+
       <div className="between" style={{ marginTop: 22, alignItems: 'baseline' }}>
         <h2>Your buckets</h2>
         <span className="small muted" style={{ fontWeight: 700 }}>
@@ -168,11 +184,13 @@ export function Home() {
       <div className="buckets" style={{ marginTop: 12 }}>
         {data.buckets.map((b) => {
           const due = period ? bucketDueStatus(b, period, now) : null;
+          const funding = period && hasMonthlyTarget(b) ? projectFunding(b, [period])[0] : null;
           return (
             <BucketRow
               key={b.id}
               bucket={b}
               due={due}
+              funding={funding}
               onMarkPaid={due ? (paid) => markBucketPaid(b.id, paid ? due.dueOn : undefined) : undefined}
             />
           );

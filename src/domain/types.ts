@@ -32,6 +32,16 @@ export interface Bucket {
   dueDay?: number;
   /** ISO due date the user marked as paid by hand, when spending alone would not show it. */
   paidOn?: string;
+  /**
+   * For a bill that comes once a month but is saved for over several paychecks:
+   * the amount needed by each due date. `planned` is then the per-paycheck
+   * set-aside and `balance` carries what has been saved so far.
+   */
+  monthlyTarget?: number;
+  /** Money set aside in earlier paychecks and not yet paid out. */
+  balance?: number;
+  /** How many paychecks the monthly amount is spread across (for the suggestion). */
+  fundOver?: number;
 }
 
 export interface Bill {

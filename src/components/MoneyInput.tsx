@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { parseMoney } from '../lib/money';
 
 interface Props {
@@ -14,6 +14,12 @@ interface Props {
 /** A dollar (or percent) field that keeps the user's typing but reports a number. */
 export function MoneyInput({ id, value, onChange, big, unit, placeholder = '0', prefix = '$' }: Props) {
   const [text, setText] = useState(value === null ? '' : formatTyped(value));
+  // When the value is changed from outside (a "Use $950" button, a reset), show it;
+  // while the user is typing, the parsed text already equals the value and nothing happens.
+  useEffect(() => {
+    if (parseMoney(text) !== value) setText(value === null ? '' : formatTyped(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
   return (
     <div className={`input ${big ? 'big' : ''}`}>
       {prefix && <span className="unit">{prefix}</span>}
