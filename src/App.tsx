@@ -1,0 +1,51 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AppShell } from './components/AppShell';
+import { useStore } from './state/store';
+import { Welcome } from './pages/setup/Welcome';
+import { PayFrequency } from './pages/setup/PayFrequency';
+import { Bonuses } from './pages/setup/Bonuses';
+import { PlanAhead } from './pages/setup/PlanAhead';
+import { Buckets } from './pages/setup/Buckets';
+import { CustomizeBuckets } from './pages/setup/CustomizeBuckets';
+import { Ready } from './pages/setup/Ready';
+import { Estimate } from './pages/setup/Estimate';
+import { Home } from './pages/app/Home';
+import { Ahead } from './pages/app/Ahead';
+import { ExtraMoney } from './pages/app/ExtraMoney';
+import { BucketsPage } from './pages/app/BucketsPage';
+import { Appearance } from './pages/app/Appearance';
+
+function RequireSetup({ children }: { children: JSX.Element }) {
+  const { data } = useStore();
+  return data.setupComplete ? children : <Navigate to="/" replace />;
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Welcome />} />
+      <Route path="/setup/pay" element={<PayFrequency />} />
+      <Route path="/setup/bonuses" element={<Bonuses />} />
+      <Route path="/setup/ahead" element={<PlanAhead />} />
+      <Route path="/setup/buckets" element={<Buckets />} />
+      <Route path="/setup/buckets/customize" element={<CustomizeBuckets />} />
+      <Route path="/setup/ready" element={<Ready />} />
+      <Route path="/setup/estimate" element={<Estimate />} />
+      <Route
+        path="/app"
+        element={
+          <RequireSetup>
+            <AppShell />
+          </RequireSetup>
+        }
+      >
+        <Route index element={<Home />} />
+        <Route path="ahead" element={<Ahead />} />
+        <Route path="extra" element={<ExtraMoney />} />
+        <Route path="buckets" element={<BucketsPage />} />
+        <Route path="settings" element={<Appearance />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

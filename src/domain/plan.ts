@@ -1,0 +1,176 @@
+/**
+ * Turns interview answers into a paycheck-based plan: pay periods, bucket
+ * allocations, which bills land in which paycheck, and whether a paycheck
+ * looks tight.
+ */
+import type { Answers, Bill, Bucket, IncomeEvent, PayFrequency, PayPeriod, PlanningHorizon, Reserve } from './types';
+import { STARTER_BUCKETS } from '../data/fixtures';
+import { addDays, addMonths, parseISO, toISO } from '../lib/dates';
+import { roundTo } from '../lib/money';
+
+/** The payday after `payday` for a given frequency. */
+export function nextPayday(payday: string, frequency: PayFrequency): string {
+  switch (frequency) {
+    case 'weekly':
+      return addDays(payday, 7);
+    case 'biweekly':
+    case 'irregular':
+      return addDays(payday, 14);
+    case 'monthly':
+      return addMonths(payday, 1);
+    case 'semimonthly': {
+      // Paid twice a month: if this payday is in the first half, the next one
+      // is 15 days later; otherwise it is the same day-of-month next month.
+      const d = parseISO(payday);
+      if (d.getDate() <= 15) return addDays(payday, 15);
+      const first = new Date(d.getFullYear(), d.getMonth() + 1, Math.max(1, d.getDate() - 15));
+      return toISO(first);
+    }
+  }
+}
+
+/** How many paychecks the Ahead view should show for a horizon. */
+export function horizonCount(horizon: PlanningHorizon, frequency: PayFrequency, firstPayday: string): number {
+  if (horizon === 'this') return 1;
+  if (horizon === 'few') return 3;
+  // Whole month: every payday that falls in the same calendar month as the first.
+  const month = parseISO(firstPayday).getMonth();
+  let count = 1;
+  let payday = nextPayday(firstPayday, frequency);
+  while (parseISO(payday).getMonth() === month && count < 6) {
+    count += 1;
+    payday = nextPayday(payday, frequency);
+  }
+  return count;
+}
+
+/** Generate `count` consecutive pay periods starting at `firstPayday`. */
+export function payPeriods(firstPayday: string, frequency: PayFrequency, takeHome: number, count: number): PayPeriod[] {
+  const periods: PayPeriod[] = [];
+  let payday = firstPayday;
+  for (let i = 0; i < count; i += 1) {
+    const following = nextPayday(payday, frequency);
+    periods.push({ payday, end: addDays(following, -1), takeHome });
+    payday = following;
+  }
+  return periods;
+}
+
+/** Split a paycheck across the starter buckets, rounded to $10, remainder to "Everything else". */
+export function suggestBuckets(paycheck: number): Bucket[] {
+  const buckets: Bucket[] = STARTER_BUCKETS.map((t) => ({
+    id: t.id,
+    name: t.name,
+    planned: roundTo(paycheck * t.share, 10),
+    spent: 0,
+    kind: t.kind,
+  }));
+  const assigned = buckets.reduce((sum, b) => sum + b.planned, 0);
+  const other = buckets.find((b) => b.id === 'other') ?? buckets[buckets.length - 1];
+  other.planned = Math.max(0, other.planned + Math.round(paycheck - assigned));
+  return buckets;
+}
+
+/** Re-spread a paycheck over an existing bucket list, keeping their relative sizes. */
+export function rescaleBuckets(buckets: Bucket[], paycheck: number): Bucket[] {
+  const total = buckets.reduce((s, b) => s + b.planned, 0);
+  if (total <= 0) return suggestBuckets(paycheck).filter((s) => buckets.some((b) => b.id === s.id));
+  const scaled = buckets.map((b) => ({ ...b, planned: roundTo((b.planned / total) * paycheck, 10) }));
+  const assigned = scaled.reduce((s, b) => s + b.planned, 0);
+  const last = scaled[scaled.length - 1];
+  last.planned = Math.max(0, last.planned + Math.round(paycheck - assigned));
+  return scaled;
+}
+
+export function billsInPeriod(bills: Bill[], period: PayPeriod): Bill[] {
+  return bills
+    .filter((b) => b.dueDate >= period.payday && b.dueDate <= period.end)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
+export interface PeriodSummary {
+  period: PayPeriod;
+  bills: Bill[];
+  billsTotal: number;
+  /** Set aside for later paychecks (negative) or brought in from earlier ones (positive). */
+  reserveNet: number;
+  leftForBuckets: number;
+  status: 'covered' | 'tight';
+}
+
+/** A paycheck is "tight" when less than this share of it is left after bills. */
+export const TIGHT_SHARE = 0.5;
+
+export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[]): PeriodSummary {
+  const inPeriod = billsInPeriod(bills, period);
+  const billsTotal = inPeriod.reduce((s, b) => s + b.amount, 0);
+  const out = reserves.filter((r) => r.fromPayday === period.payday).reduce((s, r) => s + r.amount, 0);
+  const inn = reserves.filter((r) => r.forPayday === period.payday).reduce((s, r) => s + r.amount, 0);
+  const reserveNet = inn - out;
+  const leftForBuckets = period.takeHome - billsTotal + reserveNet;
+  return {
+    period,
+    bills: inPeriod,
+    billsTotal,
+    reserveNet,
+    leftForBuckets,
+    status: leftForBuckets < period.takeHome * TIGHT_SHARE ? 'tight' : 'covered',
+  };
+}
+
+export interface Smoothing {
+  /** The tight paycheck this helps. */
+  forPayday: string;
+  /** Paychecks to set money aside from. */
+  fromPaydays: string[];
+  /** Amount to set aside from each. */
+  perPaycheck: number;
+}
+
+/**
+ * If a later paycheck is tight and earlier ones are covered, suggest setting a
+ * round amount aside from each earlier paycheck so the tight one clears the bar.
+ */
+export function suggestSmoothing(summaries: PeriodSummary[]): Smoothing | null {
+  const tightIndex = summaries.findIndex((s) => s.status === 'tight');
+  if (tightIndex <= 0) return null;
+  const tight = summaries[tightIndex];
+  const shortfall = tight.period.takeHome * TIGHT_SHARE - tight.leftForBuckets;
+  if (shortfall <= 0) return null;
+
+  // Start with every covered paycheck before the tight one, then drop any that
+  // would itself become tight, re-splitting the amount among the rest.
+  let donors = summaries.slice(0, tightIndex).filter((s) => s.status === 'covered');
+  while (donors.length > 0) {
+    const perPaycheck = Math.ceil(shortfall / donors.length / 10) * 10;
+    const able = donors.filter((d) => d.leftForBuckets - perPaycheck >= d.period.takeHome * TIGHT_SHARE);
+    if (able.length === donors.length) {
+      return { forPayday: tight.period.payday, fromPaydays: donors.map((d) => d.period.payday), perPaycheck };
+    }
+    donors = able;
+  }
+  return null;
+}
+
+/** Everything the Ahead view needs, derived from answers and data. */
+export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[]): PeriodSummary[] {
+  if (!answers.payFrequency || !answers.nextPayday) return [];
+  const takeHome = answers.paycheckAmount ?? 0;
+  const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday);
+  return payPeriods(answers.nextPayday, answers.payFrequency, takeHome, count).map((p) => summarizePeriod(p, bills, reserves));
+}
+
+export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
+  weekly: 'every week',
+  biweekly: 'every two weeks',
+  semimonthly: 'twice a month',
+  monthly: 'once a month',
+  irregular: 'on a changing schedule',
+};
+
+/** Extra money the user chose to bring into the current paycheck's buckets. */
+export function extraAllocated(events: IncomeEvent[]): number {
+  return events
+    .filter((e) => e.allocation !== null && e.allocation.kind !== 'debt')
+    .reduce((s, e) => s + e.amount, 0);
+}

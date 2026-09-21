@@ -1,0 +1,71 @@
+:root {
+  --bg: #f5f1e8;
+  --card: #ffffff;
+  --ink: #1b2a22;
+  --muted: #55665c;
+  --border: #ddd6c8;
+  --divider: #ede8dd;
+  --ring: #c9c2b4;
+  --tint: #e9f3ec;
+  --accent: #2e7d5b;
+  --accent-hover: #256648;
+  --on-accent: #ffffff;
+  --clay: #b85c33;
+  --clay-tint: #f6e7de;
+  --warn-bg: #fbefd5;
+  --warn-border: #ebd9a8;
+  --warn-text: #8a5a00;
+  --pill: rgba(255, 255, 255, 0.18);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Nunito Sans', system-ui, sans-serif;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --shadow: 0 1px 2px rgba(27, 42, 34, 0.06);
+  color-scheme: light;
+}
+
+/* Dark palette. Applied when the user picks Dark, or when they pick
+   "match my device" and the device prefers dark. */
+[data-theme='dark'] {
+  --bg: #121715;
+  --card: #1b221f;
+  --ink: #edeae2;
+  --muted: #a3b0a8;
+  --border: #2e3833;
+  --divider: #2a332e;
+  --ring: #4a554f;
+  --tint: #1f3a2d;
+  --accent: #71a78f;
+  --accent-hover: #86b8a1;
+  --on-accent: #0f1a14;
+  --clay: #e08a5f;
+  --clay-tint: #3a2a22;
+  --warn-bg: #3a3220;
+  --warn-border: #5a4e2c;
+  --warn-text: #e5b85c;
+  --pill: rgba(0, 0, 0, 0.14);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #121715;
+    --card: #1b221f;
+    --ink: #edeae2;
+    --muted: #a3b0a8;
+    --border: #2e3833;
+    --divider: #2a332e;
+    --ring: #4a554f;
+    --tint: #1f3a2d;
+    --accent: #71a78f;
+    --accent-hover: #86b8a1;
+    --on-accent: #0f1a14;
+    --clay: #e08a5f;
+    --clay-tint: #3a2a22;
+    --warn-bg: #3a3220;
+    --warn-border: #5a4e2c;
+    --warn-text: #e5b85c;
+    --pill: rgba(0, 0, 0, 0.14);
+    color-scheme: dark;
+  }
+}
