@@ -19,6 +19,7 @@ describe('migrate', () => {
     expect(out.version).toBe(2);
     expect(out.incomeEvents[0]).toMatchObject({ date: '2026-09-30', status: 'received', allocation: null });
     expect(out.incomeEvents[1].allocation).toEqual({ kind: 'paycheck', payday: '2026-09-26' });
+    expect(migrate(out)).toEqual(out);
   });
 
   it('rejects unknown shapes', () => {

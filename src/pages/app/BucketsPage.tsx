@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import type { Bucket } from '../../domain/types';
-import { buildOutlook, extraForCurrentPaycheck } from '../../domain/plan';
+import { extraTotalForPayday } from '../../domain/plan';
 import { fmt, newId } from '../../lib/money';
+import { useCurrentPayday } from '../../state/selectors';
 import { useStore } from '../../state/store';
 
 export function BucketsPage() {
@@ -11,8 +12,8 @@ export function BucketsPage() {
   const [list, setList] = useState<Bucket[]>(data.buckets);
   const [saved, setSaved] = useState(false);
 
-  const currentPayday = buildOutlook(data.answers, data.bills, data.reserves, data.incomeEvents)[0]?.period.payday ?? null;
-  const paycheck = (data.answers.paycheckAmount ?? 0) + extraForCurrentPaycheck(data.incomeEvents, currentPayday);
+  const currentPayday = useCurrentPayday();
+  const paycheck = (data.answers.paycheckAmount ?? 0) + extraTotalForPayday(data.incomeEvents, currentPayday);
   const planned = list.reduce((s, b) => s + b.planned, 0);
   const left = paycheck - planned;
   const dirty = JSON.stringify(list) !== JSON.stringify(data.buckets);

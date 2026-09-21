@@ -16,7 +16,7 @@ export const initialData: AppData = {
   reserves: [],
 };
 
-type Action =
+export type Action =
   | { type: 'answer'; patch: Partial<Answers> }
   | { type: 'setBuckets'; buckets: Bucket[] }
   | { type: 'completeSetup' }
@@ -28,7 +28,7 @@ type Action =
   | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
   | { type: 'reset' };
 
-function reducer(state: AppData, action: Action): AppData {
+export function reducer(state: AppData, action: Action): AppData {
   switch (action.type) {
     case 'answer':
       return { ...state, answers: { ...state.answers, ...action.patch } };
@@ -84,13 +84,10 @@ function reducer(state: AppData, action: Action): AppData {
           if (otherId) buckets = bump(otherId, event.amount - half);
           break;
         }
-        case 'paycheck': {
-          // Planned into a paycheck: the paycheck's available money grows and the
-          // user assigns it on the Buckets screen. Nothing is spread automatically.
-          break;
-        }
+        case 'paycheck':
         case 'debt':
-          // Recorded only; the POC has no debt accounts to pay from.
+          // Money folded into a paycheck is assigned by hand on the Buckets screen;
+          // a debt payment leaves the budget. Neither changes buckets here.
           break;
       }
       return {

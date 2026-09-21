@@ -46,12 +46,18 @@ export interface IncomeEvent {
   allocation: BonusAllocation | null;
 }
 
-export type BonusAllocation =
-  | { kind: 'savings' }
-  | { kind: 'debt' }
-  | { kind: 'split' }
-  /** Folded into one paycheck's budget, identified by its payday. */
-  | { kind: 'paycheck'; payday: string };
+export type AllocationKind = 'savings' | 'debt' | 'split' | 'paycheck';
+
+export interface BonusAllocation {
+  kind: AllocationKind;
+  /**
+   * The paycheck this money is counted in, by payday. Expected money is planned
+   * into a future paycheck; received money goes into the paycheck that was
+   * current when the decision was made. Debt payments are recorded here too
+   * but never counted as available money.
+   */
+  payday: string;
+}
 
 /** Money set aside from one paycheck to help a later one. */
 export interface Reserve {

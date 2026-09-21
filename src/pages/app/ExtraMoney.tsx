@@ -4,13 +4,14 @@ import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import { OptionCard } from '../../components/OptionCard';
 import { SAMPLE_BALANCES } from '../../data/fixtures';
-import { buildOutlook, periodForDate, type PeriodSummary } from '../../domain/plan';
-import type { BonusAllocation, IncomeEvent } from '../../domain/types';
+import { periodForDate, type PeriodSummary } from '../../domain/plan';
+import type { AllocationKind, IncomeEvent } from '../../domain/types';
 import { fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
+import { useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
 
-function allocationLabel(a: BonusAllocation): string {
+function allocationLabel(a: { kind: AllocationKind; payday: string }): string {
   switch (a.kind) {
     case 'savings':
       return 'Savings';
@@ -23,16 +24,11 @@ function allocationLabel(a: BonusAllocation): string {
   }
 }
 
-function useOutlook(): PeriodSummary[] {
-  const { data } = useStore();
-  return buildOutlook(data.answers, data.bills, data.reserves, data.incomeEvents);
-}
-
 /** A received bonus waiting for a decision. */
 function Decide({ event, currentPayday }: { event: IncomeEvent; currentPayday: string | null }) {
   const { allocateIncome } = useStore();
-  const [choice, setChoice] = useState<BonusAllocation['kind']>('savings');
-  const options: { kind: BonusAllocation['kind']; title: string; sub: string; badge?: string }[] = [
+  const [choice, setChoice] = useState<AllocationKind>('savings');
+  const options: { kind: AllocationKind; title: string; sub: string; badge?: string }[] = [
     {
       kind: 'savings',
       title: 'Savings',
@@ -44,12 +40,7 @@ function Decide({ event, currentPayday }: { event: IncomeEvent; currentPayday: s
     { kind: 'paycheck', title: 'Add it to this paycheck', sub: 'More to assign across your buckets this paycheck.' },
   ];
   const apply = () => {
-    if (choice === 'paycheck') {
-      if (!currentPayday) return;
-      allocateIncome(event.id, { kind: 'paycheck', payday: currentPayday });
-    } else {
-      allocateIncome(event.id, { kind: choice });
-    }
+    if (currentPayday) allocateIncome(event.id, { kind: choice, payday: currentPayday });
   };
   return (
     <div className="stack" style={{ gap: 12 }}>
@@ -68,7 +59,7 @@ function Decide({ event, currentPayday }: { event: IncomeEvent; currentPayday: s
           <OptionCard key={o.kind} selected={choice === o.kind} onSelect={() => setChoice(o.kind)} title={o.title} sub={o.sub} badge={o.badge} />
         ))}
       </div>
-      <button type="button" className="btn btn-primary" onClick={apply}>
+      <button type="button" className="btn btn-primary" onClick={apply} disabled={!currentPayday}>
         {choice === 'savings' ? 'Put it in savings' : choice === 'debt' ? 'Pay down the card' : choice === 'split' ? 'Split it' : 'Add it to this paycheck'}
       </button>
     </div>
@@ -80,9 +71,18 @@ function Expected({ event, outlook }: { event: IncomeEvent; outlook: PeriodSumma
   const { allocateIncome, markReceived } = useStore();
   const periods = outlook.map((s) => s.period);
   const planned = event.allocation?.kind === 'paycheck' ? event.allocation.payday : null;
-  const [editing, setEditing] = useState(planned === null);
-  const [payday, setPayday] = useState<string>(planned ?? periodForDate(periods, event.date)?.payday ?? periods[0]?.payday ?? '');
+  // A plan can point at a paycheck that is no longer in view (the horizon or
+  // payday changed). Treat it as unplanned so the user picks again.
+  const stale = planned !== null && !periods.some((p) => p.payday === planned);
+  const [editing, setEditing] = useState(planned === null || stale);
   const landsBeyond = periodForDate(periods, event.date) === null;
+  // Default to the paycheck the money lands in; past the horizon, the last one shown.
+  const [payday, setPayday] = useState<string>(
+    (stale ? null : planned) ?? periodForDate(periods, event.date)?.payday ?? periods[periods.length - 1]?.payday ?? '',
+  );
+  const chosen = periods.find((p) => p.payday === payday);
+  const endsBeforeLanding = !!chosen && chosen.end < event.date;
+  const overdue = event.date < today();
 
   return (
     <div className="card stack" style={{ gap: 12, borderColor: 'var(--clay)' }}>
@@ -94,7 +94,7 @@ function Expected({ event, outlook }: { event: IncomeEvent; outlook: PeriodSumma
           <span style={{ fontWeight: 700, fontSize: 16 }}>
             {fmt(event.amount)} from {event.source}
           </span>
-          <span className="small muted">Expected {fmtWeekday(event.date)}</span>
+          <span className="small muted">{overdue ? `Was expected ${fmtWeekday(event.date)}. Has it landed?` : `Expected ${fmtWeekday(event.date)}`}</span>
         </span>
       </div>
 
@@ -111,7 +111,13 @@ function Expected({ event, outlook }: { event: IncomeEvent; outlook: PeriodSumma
                 ))}
               </select>
             </div>
-            {landsBeyond && (
+            {stale && <span className="small muted">The paycheck you picked before is no longer in view. Pick again.</span>}
+            {endsBeforeLanding && (
+              <span className="small" style={{ color: 'var(--warn-text)', fontWeight: 700 }}>
+                That paycheck ends {fmtShort(chosen.end)}, before the money lands. It would be counted before you have it.
+              </span>
+            )}
+            {landsBeyond && !stale && (
               <span className="small muted">
                 It lands after the paychecks you plan for. Pick the one that should count on it, or leave it until it arrives.
               </span>
@@ -130,7 +136,7 @@ function Expected({ event, outlook }: { event: IncomeEvent; outlook: PeriodSumma
             >
               Plan it into that paycheck
             </button>
-            {planned && (
+            {planned && !stale && (
               <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)}>
                 Cancel
               </button>
@@ -150,7 +156,7 @@ function Expected({ event, outlook }: { event: IncomeEvent; outlook: PeriodSumma
       )}
 
       <div className="row" style={{ paddingTop: 4, borderTop: '1px solid var(--divider)', flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-sm btn-outline" style={{ minHeight: 40 }} onClick={() => markReceived(event.id)}>
+        <button type="button" className={`btn btn-sm ${overdue ? 'btn-clay' : 'btn-outline'}`} style={{ minHeight: 40 }} onClick={() => markReceived(event.id)}>
           It landed
         </button>
         <span className="small muted">
@@ -281,7 +287,7 @@ export function ExtraMoneyPanel({ compact }: { compact?: boolean }) {
 export function ExtraMoney() {
   const { data } = useStore();
   const outlook = useOutlook();
-  const currentPayday = outlook[0]?.period.payday ?? data.answers.nextPayday;
+  const currentPayday = outlook[0]?.period.payday ?? null;
   const pending = data.incomeEvents.filter((e) => e.status === 'received' && e.allocation === null);
   const expected = data.incomeEvents.filter((e) => e.status === 'expected').sort((a, b) => a.date.localeCompare(b.date));
   const decided = data.incomeEvents.filter((e) => e.status === 'received' && e.allocation !== null);

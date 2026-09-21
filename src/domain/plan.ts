@@ -104,12 +104,21 @@ export interface PeriodSummary {
 /** A paycheck is "tight" when less than this share of it is left after bills. */
 export const TIGHT_SHARE = 0.5;
 
-/** Extra money the user has folded into the paycheck with this payday. */
-export function extraForPayday(events: IncomeEvent[], payday: string): IncomeEvent[] {
-  return events.filter((e) => e.allocation?.kind === 'paycheck' && e.allocation.payday === payday);
+/**
+ * Extra money counted in the paycheck with this payday: anything planned into
+ * it, moved to savings, or split. Debt payments leave the budget, so they are
+ * excluded. This is the single definition Home, Ahead and Buckets all use.
+ */
+export function extraForPayday(events: IncomeEvent[], payday: string | null): IncomeEvent[] {
+  if (!payday) return [];
+  return events.filter((e) => e.allocation !== null && e.allocation.kind !== 'debt' && e.allocation.payday === payday);
 }
 
-export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[], events: IncomeEvent[] = []): PeriodSummary {
+export function extraTotalForPayday(events: IncomeEvent[], payday: string | null): number {
+  return extraForPayday(events, payday).reduce((s, e) => s + e.amount, 0);
+}
+
+export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[], events: IncomeEvent[]): PeriodSummary {
   const inPeriod = billsInPeriod(bills, period);
   const billsTotal = inPeriod.reduce((s, b) => s + b.amount, 0);
   const out = reserves.filter((r) => r.fromPayday === period.payday).reduce((s, r) => s + r.amount, 0);
@@ -170,7 +179,7 @@ export function suggestSmoothing(summaries: PeriodSummary[]): Smoothing | null {
 }
 
 /** Everything the Ahead view needs, derived from answers and data. */
-export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[], events: IncomeEvent[] = []): PeriodSummary[] {
+export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[], events: IncomeEvent[]): PeriodSummary[] {
   if (!answers.payFrequency || !answers.nextPayday) return [];
   const takeHome = answers.paycheckAmount ?? 0;
   const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday);
@@ -185,17 +194,3 @@ export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
   irregular: 'on a changing schedule',
 };
 
-/**
- * Extra money counted in the current paycheck: anything moved into buckets
- * (savings, split) plus whatever was folded into this paycheck by payday.
- */
-export function extraForCurrentPaycheck(events: IncomeEvent[], payday: string | null): number {
-  return events
-    .filter((e) => {
-      if (!e.allocation) return false;
-      if (e.allocation.kind === 'debt') return false;
-      if (e.allocation.kind === 'paycheck') return e.allocation.payday === payday;
-      return true;
-    })
-    .reduce((s, e) => s + e.amount, 0);
-}
