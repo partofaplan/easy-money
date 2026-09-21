@@ -13,7 +13,6 @@ import {
   payPeriods,
   periodForDate,
   suggestBuckets,
-  suggestSmoothing,
   summarizePeriod,
 } from './plan';
 import { ordinalDay } from '../lib/dates';
@@ -58,9 +57,9 @@ describe('suggestBuckets', () => {
   });
 });
 
-describe('periods and smoothing', () => {
+describe('periods and bills', () => {
   const periods = payPeriods('2026-09-26', 'biweekly', 2140, 3);
-  const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], []));
+  const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, []));
 
   it('places bills in the paycheck that pays them', () => {
     expect(summaries[0].bills.map((b) => b.name)).toEqual(['Rent', 'Phone']);
@@ -70,22 +69,6 @@ describe('periods and smoothing', () => {
 
   it('flags the paycheck with rent and a card payment as tight', () => {
     expect(summaries.map((s) => s.status)).toEqual(['covered', 'covered', 'tight']);
-  });
-
-  it('suggests a round amount from earlier paychecks', () => {
-    const s = suggestSmoothing(summaries);
-    expect(s).not.toBeNull();
-    expect(s?.forPayday).toBe('2026-10-24');
-    // The first paycheck cannot spare its share without going tight itself, so only the second gives.
-    expect(s?.fromPaydays).toEqual(['2026-10-10']);
-    expect(s?.perPaycheck).toBe(120);
-  });
-
-  it('applying the reserve clears the tight paycheck', () => {
-    const s = suggestSmoothing(summaries)!;
-    const reserves = s.fromPaydays.map((from, i) => ({ id: String(i), fromPayday: from, forPayday: s.forPayday, amount: s.perPaycheck }));
-    const after = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, reserves, []));
-    expect(after.map((x) => x.status)).toEqual(['covered', 'covered', 'covered']);
   });
 });
 
@@ -100,14 +83,14 @@ describe('planned bonuses', () => {
 
   it('counts a bonus only in the paycheck it was planned into', () => {
     const planned = { ...bonus, allocation: { kind: 'paycheck' as const, payday: '2026-10-24' } };
-    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], [planned]));
+    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [planned]));
     expect(summaries.map((s) => s.extraTotal)).toEqual([0, 0, 800]);
     expect(summaries[2].leftForBuckets).toBe(2140 + 800 - 1190);
     expect(summaries[2].status).toBe('covered');
   });
 
   it('ignores expected money that has not been planned yet', () => {
-    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], [bonus]));
+    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [bonus]));
     expect(summaries.every((s) => s.extraTotal === 0)).toBe(true);
     expect(extraTotalForPayday([bonus], '2026-09-26')).toBe(0);
   });
@@ -121,7 +104,7 @@ describe('planned bonuses', () => {
     ];
     expect(extraTotalForPayday(events, '2026-09-26')).toBe(1600);
     expect(extraTotalForPayday(events, null)).toBe(0);
-    const first = summarizePeriod(periods[0], SAMPLE_BILLS, [], events);
+    const first = summarizePeriod(periods[0], SAMPLE_BILLS, events);
     expect(first.extraTotal).toBe(1600);
   });
 });
@@ -152,6 +135,8 @@ describe('bucket due dates', () => {
     expect(bucketDueStatus(rent, p1, '2026-10-03')).toEqual({ dueOn: '2026-10-01', paid: false, overdue: true });
     expect(bucketDueStatus({ ...rent, spent: 950 }, p1, '2026-10-03')).toEqual({ dueOn: '2026-10-01', paid: true, overdue: false });
     expect(bucketDueStatus(rent, p2, '2026-10-12')).toBeNull();
+    // Nothing planned this paycheck: the bill is being paid from another one.
+    expect(bucketDueStatus({ ...rent, planned: 0 }, p1, '2026-09-27')).toBeNull();
   });
 
   it('treats a due date marked paid by hand as paid, for that date only', () => {
@@ -200,7 +185,7 @@ describe('paycheck plans', () => {
   });
 
   it('gives each upcoming paycheck its planned take-home', () => {
-    const outlook = buildOutlook({ answers: { ...answers, paycheckAmount: 2000 }, bills: [], reserves: [], events: [], plans, deposit, extra: 1 });
+    const outlook = buildOutlook({ answers: { ...answers, paycheckAmount: 2000 }, bills: [], events: [], plans, deposit, extra: 1 });
     expect(outlook.map((s) => s.period.takeHome)).toEqual([2140, 2140, 2000, 2000]);
   });
 });

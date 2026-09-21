@@ -69,17 +69,6 @@ export interface BonusAllocation {
   payday: string;
 }
 
-/** Money set aside from one paycheck to help a later one. */
-export interface Reserve {
-  id: string;
-  /** ISO payday of the paycheck the money comes from. */
-  fromPayday: string;
-  /** ISO payday of the paycheck it helps. */
-  forPayday: string;
-  amount: number;
-}
-
-/** What the user decided ahead of time for one paycheck. */
 export interface PaycheckPlan {
   /** ISO payday this plan is for. */
   payday: string;
@@ -110,7 +99,6 @@ export interface AppData {
   buckets: Bucket[];
   bills: Bill[];
   incomeEvents: IncomeEvent[];
-  reserves: Reserve[];
   /** Plans for upcoming paychecks, only stored once the user edits one. */
   plans: PaycheckPlan[];
   /** The current paycheck's confirmed deposit, or null until the user confirms it. */

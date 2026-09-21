@@ -8,7 +8,6 @@ export function useOutlook(extra = 0): PeriodSummary[] {
   return buildOutlook({
     answers: data.answers,
     bills: data.bills,
-    reserves: data.reserves,
     events: data.incomeEvents,
     plans: data.plans,
     deposit: data.deposit,

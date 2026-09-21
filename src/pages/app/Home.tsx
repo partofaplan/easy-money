@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, nextPayday, planAssigned, planFor, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, nextPayday, planAssigned, planFor } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
 import { useCurrentPaycheck, useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
-import { AheadPanel, SmoothingCard } from './Ahead';
+import { AheadPanel } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
@@ -32,11 +32,13 @@ export function Home() {
   // For irregular pay the next date is whatever the user enters.
   const toConfirm = period ? (confirmed ? (irregular && landedOn ? landedOn : following) : period.payday) : null;
   const planToConfirm = toConfirm ? planFor(toConfirm, data.plans, data.buckets, data.answers) : null;
+  const assignedToConfirm = planToConfirm ? planAssigned(planToConfirm, data.buckets) : 0;
+  const extraToConfirm = toConfirm ? extraTotalForPayday(data.incomeEvents, toConfirm) : 0;
+  const planGap = planToConfirm ? planToConfirm.takeHome + extraToConfirm - assignedToConfirm : 0;
   const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
   const waiting = data.incomeEvents.find((e) => e.allocation === null);
   const available = takeHome + extra;
-  const smoothing = suggestSmoothing(outlook);
 
   const dueNow = period ? bucketsDueInPeriod(data.buckets, period, now).filter((d) => !d.due.paid) : [];
   const timing = period
@@ -114,7 +116,11 @@ export function Home() {
                 {confirmed ? `Next paycheck ${fmtWeekday(toConfirm)}` : `Has your ${fmtWeekday(toConfirm)} paycheck landed?`}
               </span>
               <span className="small muted">
-                Planned {fmt(planToConfirm.takeHome)} · {fmt(planAssigned(planToConfirm, data.buckets))} assigned across {data.buckets.length} buckets.{' '}
+                Planned {fmt(planToConfirm.takeHome)}
+                {extraToConfirm > 0 ? ` + ${fmt(extraToConfirm)} extra` : ''} · {fmt(assignedToConfirm)} assigned across {data.buckets.length} buckets.{' '}
+                {planGap !== 0 && (
+                  <span style={{ color: 'var(--warn-text)', fontWeight: 700 }}>{planGap > 0 ? `${fmt(planGap)} unassigned. ` : `${fmt(-planGap)} over. `}</span>
+                )}
                 <Link to="/app/plan">Adjust the plan</Link>
               </span>
             </span>
@@ -168,13 +174,18 @@ export function Home() {
               <button type="button" className="btn btn-ghost" onClick={() => setConfirming(null)}>
                 Not yet
               </button>
-              {landed !== null && landed > 0 && landed !== planToConfirm.takeHome && (
-                <span className="small muted" style={{ flexBasis: '100%' }}>
-                  {landed > planToConfirm.takeHome
-                    ? `${fmt(landed - planToConfirm.takeHome)} more than planned. It will show as left to assign.`
-                    : `${fmt(planToConfirm.takeHome - landed)} less than planned. The plan will show as over; trim a bucket after.`}
-                </span>
-              )}
+              {landed !== null && landed > 0 && (() => {
+                const after = landed + extraToConfirm - assignedToConfirm;
+                if (after === 0) return null;
+                return (
+                  <span className="small muted" style={{ flexBasis: '100%' }}>
+                    {landed !== planToConfirm.takeHome
+                      ? `${fmt(Math.abs(landed - planToConfirm.takeHome))} ${landed > planToConfirm.takeHome ? 'more' : 'less'} than planned. `
+                      : ''}
+                    {after > 0 ? `You'll have ${fmt(after)} left to assign.` : `The buckets will be ${fmt(-after)} over; trim one after.`}
+                  </span>
+                );
+              })()}
             </form>
           )}
         </div>
@@ -271,7 +282,6 @@ export function Home() {
       {main}
       <aside className="aside" aria-label="Coming up">
         {data.answers.horizon !== 'this' && <AheadPanel summaries={outlook} buckets={data.buckets} compact />}
-        {smoothing && <SmoothingCard smoothing={smoothing} />}
         {data.answers.bonuses !== 'none' && <ExtraMoneyPanel compact />}
       </aside>
     </div>

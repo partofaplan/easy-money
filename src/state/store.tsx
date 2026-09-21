@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
-import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan, Reserve } from '../domain/types';
+import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
 import { fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
@@ -13,7 +13,6 @@ export const initialData: AppData = {
   buckets: [],
   bills: [],
   incomeEvents: [],
-  reserves: [],
   plans: [],
   deposit: null,
   extraPlanned: 0,
@@ -29,7 +28,6 @@ export type Action =
   | { type: 'addIncome'; event: Omit<IncomeEvent, 'id' | 'allocation'> }
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
   | { type: 'markReceived'; eventId: string }
-  | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
   | { type: 'setPlan'; plan: PaycheckPlan }
   | { type: 'planAnother' }
   | { type: 'confirmPaycheck'; payday: string; amount: number }
@@ -116,9 +114,6 @@ export function reducer(state: AppData, action: Action): AppData {
         incomeEvents: state.incomeEvents.map((e) => (e.id === action.eventId ? { ...e, status: 'received' } : e)),
       };
 
-    case 'addReserves':
-      return { ...state, reserves: [...state.reserves, ...action.reserves.map((r) => ({ ...r, id: newId('res') }))] };
-
     case 'setPlan':
       return {
         ...state,
@@ -172,7 +167,6 @@ interface Store {
   addIncome: (event: Omit<IncomeEvent, 'id' | 'allocation'>) => void;
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
   markReceived: (eventId: string) => void;
-  addReserves: (reserves: Omit<Reserve, 'id'>[]) => void;
   setPlan: (plan: PaycheckPlan) => void;
   planAnother: () => void;
   /** Confirm a paycheck landed with `amount`, filling buckets from its plan. */
@@ -203,7 +197,6 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       addIncome: (event) => dispatch({ type: 'addIncome', event }),
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
-      addReserves: (reserves) => dispatch({ type: 'addReserves', reserves }),
       setPlan: (plan) => dispatch({ type: 'setPlan', plan }),
       planAnother: () => dispatch({ type: 'planAnother' }),
       confirmPaycheck: (payday, amount) => dispatch({ type: 'confirmPaycheck', payday, amount }),

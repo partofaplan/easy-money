@@ -68,7 +68,6 @@ export const DEMO_DATA: AppData = {
   ],
   bills: SAMPLE_BILLS,
   incomeEvents: [SAMPLE_BONUS, SAMPLE_EXPECTED_BONUS],
-  reserves: [],
   // The Oct 10 paycheck carries three bills, so its plan puts more in Bills & utilities and less in fun.
   plans: [
     {
