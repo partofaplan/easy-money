@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Brand } from './Brand';
 import { Icon, type IconName } from './Icon';
+import { useProfiles } from '../state/profileContext';
 import { useStore } from '../state/store';
 
 function Item({ to, icon, label, end }: { to: string; icon: IconName; label: string; end?: boolean }) {
@@ -18,6 +19,7 @@ function Item({ to, icon, label, end }: { to: string; icon: IconName; label: str
  */
 export function AppShell() {
   const { data } = useStore();
+  const { active } = useProfiles();
   const showAhead = data.answers.horizon !== 'this';
   const showExtra = data.answers.bonuses !== 'none';
   return (
@@ -25,6 +27,11 @@ export function AppShell() {
       <nav className="shell-nav" aria-label="Main">
         <div className="brand-wrap">
           <Brand to="/app" />
+          {active && (
+            <span className="small muted" style={{ display: 'block', paddingTop: 6 }}>
+              {active.name}&rsquo;s budget
+            </span>
+          )}
         </div>
         <Item to="/app" end icon="wallet" label="This paycheck" />
         <Item to="/app/plan" icon="calendar" label="Plan" />

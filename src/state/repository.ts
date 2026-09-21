@@ -11,7 +11,6 @@ export interface Repository {
   clear(): void;
 }
 
-const KEY = 'easy-money.data';
 
 /**
  * Bring older stored data up to the current shape, one version at a time.
@@ -64,9 +63,12 @@ function v2ToV3(v2: V2Data): AppData {
 }
 
 export class LocalStorageRepository implements Repository {
+  /** @param key the storage key this profile's budget lives under */
+  constructor(private readonly key: string) {}
+
   load(): AppData | null {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(this.key);
       if (!raw) return null;
       return migrate(JSON.parse(raw));
     } catch {
@@ -75,14 +77,14 @@ export class LocalStorageRepository implements Repository {
   }
   save(data: AppData): void {
     try {
-      localStorage.setItem(KEY, JSON.stringify(data));
+      localStorage.setItem(this.key, JSON.stringify(data));
     } catch {
       // Storage may be unavailable (private mode); the app keeps working in memory.
     }
   }
   clear(): void {
     try {
-      localStorage.removeItem(KEY);
+      localStorage.removeItem(this.key);
     } catch {
       // ignore
     }
