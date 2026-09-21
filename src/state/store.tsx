@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, Reserve } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { hasMonthlyTarget, nextPayday, rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { dueDateInPeriod, envelopeOutflow, hasMonthlyTarget, nextPayday, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
+import { addDays } from '../lib/dates';
 import { newId } from '../lib/money';
 import { LocalStorageRepository, type Repository } from './repository';
 
@@ -117,14 +118,20 @@ export function reducer(state: AppData, action: Action): AppData {
     case 'startNextPaycheck': {
       const { payFrequency, nextPayday: payday } = state.answers;
       if (!payFrequency || !payday) return state;
+      const following = nextPayday(payday, payFrequency);
+      const period = { payday, end: addDays(following, -1), takeHome: 0 };
       return {
         ...state,
-        answers: { ...state.answers, nextPayday: nextPayday(payday, payFrequency) },
-        // Envelopes with a monthly target carry what was set aside and not paid out;
-        // every bucket starts the new paycheck with nothing spent.
-        buckets: state.buckets.map((b) =>
-          hasMonthlyTarget(b) ? { ...b, balance: Math.max(0, (b.balance ?? 0) + b.planned - b.spent), spent: 0 } : { ...b, spent: 0 },
-        ),
+        answers: { ...state.answers, nextPayday: following },
+        // Envelopes with a monthly target carry what was set aside and not paid out
+        // (a bill marked paid by hand counts as paid out). Every bucket starts the
+        // new paycheck with nothing spent and no hand-marked payment.
+        buckets: state.buckets.map((b) => {
+          const next = { ...b, spent: 0, paidOn: undefined };
+          if (!hasMonthlyTarget(b)) return next;
+          const billDue = dueDateInPeriod(b.dueDay, period) !== null;
+          return { ...next, balance: Math.max(0, (b.balance ?? 0) + b.planned - envelopeOutflow(b, billDue, true)) };
+        }),
       };
     }
 

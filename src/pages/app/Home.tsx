@@ -23,7 +23,8 @@ export function Home() {
   const period = outlook[0]?.period;
   const takeHome = data.answers.paycheckAmount ?? 0;
   const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
-  const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
+  // Paying a monthly bill out of its envelope is not overspending this paycheck.
+  const spent = data.buckets.reduce((s, b) => s + (hasMonthlyTarget(b) ? Math.min(b.spent, b.planned) : b.spent), 0);
   const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
   const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
@@ -150,7 +151,13 @@ export function Home() {
       {period && (
         <div className="between" style={{ marginTop: 10, padding: '0 4px' }}>
           <span className="small muted">Paid again? Move on and carry your envelopes forward.</span>
-          <button type="button" className="link small" onClick={startNextPaycheck}>
+          <button
+            type="button"
+            className="link small"
+            onClick={() => {
+              if (window.confirm('Start the next paycheck? Envelope balances carry forward and this paycheck\'s spending resets.')) startNextPaycheck();
+            }}
+          >
             Start the next paycheck
           </button>
         </div>

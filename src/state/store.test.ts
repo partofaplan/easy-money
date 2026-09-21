@@ -31,16 +31,31 @@ describe('reducer: extra money', () => {
 });
 
 describe('reducer: next paycheck', () => {
-  it('advances the payday, carries envelope balances and resets spending', () => {
+  it('advances the payday, pays out due envelopes, carries the rest and resets spending', () => {
     const before = demo();
     const state = reducer(before, { type: 'startNextPaycheck' });
     expect(state.answers.nextPayday).toBe('2026-10-10');
+    // Rent was due Oct 1 inside the paycheck that just ended: the envelope is assumed to have paid it.
     const rent = state.buckets.find((b) => b.id === 'housing')!;
-    expect(rent.balance).toBe(950 + 950);
+    expect(rent.balance).toBe(0);
     expect(rent.spent).toBe(0);
+    // An envelope whose bill is not due until the next paycheck keeps saving.
+    const saving = reducer(
+      { ...before, buckets: [{ ...before.buckets[0], dueDay: 20 }] },
+      { type: 'startNextPaycheck' },
+    ).buckets[0];
+    expect(saving.balance).toBe(950 + 950);
     const groceries = state.buckets.find((b) => b.id === 'groceries')!;
     expect(groceries.spent).toBe(0);
     expect(groceries.balance).toBeUndefined();
+  });
+
+  it('honours a bill marked paid by hand when carrying the envelope', () => {
+    const marked = reducer(demo(), { type: 'markBucketPaid', bucketId: 'housing', dueOn: '2026-10-01' });
+    const state = reducer(marked, { type: 'startNextPaycheck' });
+    const rent = state.buckets.find((b) => b.id === 'housing')!;
+    expect(rent.balance).toBe(0);
+    expect(rent.paidOn).toBeUndefined();
   });
 
   it('pays the envelope out before carrying the rest', () => {

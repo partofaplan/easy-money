@@ -194,7 +194,22 @@ describe('saving for a monthly bill across paychecks', () => {
 
   it('does not count a bill already paid this paycheck as short', () => {
     const steps = projectFunding({ ...rent, balance: 0, spent: 1900 }, periods);
-    expect(steps[0].short).toBe(0);
+    expect(steps[0]).toMatchObject({ short: 0, paid: true, carried: 0 });
+    const marked = projectFunding({ ...rent, paidOn: '2026-10-01' }, periods);
+    expect(marked[0]).toMatchObject({ paid: true, carried: 0 });
+  });
+
+  it('carries less when more than the bill was spent, and nothing extra when less', () => {
+    const over = projectFunding({ ...rent, balance: 1500, spent: 2100 }, periods);
+    expect(over[0].carried).toBe(1500 + 950 - 2100);
+    expect(projectFunding({ ...rent, balance: 1000, spent: 2100 }, periods)[0].carried).toBe(0);
+    const partial = projectFunding({ ...rent, spent: 500 }, periods);
+    expect(partial[0]).toMatchObject({ ready: 1900, short: 0, carried: 0 });
+  });
+
+  it('treats a cleared monthly amount as an ordinary bucket', () => {
+    const cleared = { ...rent, monthlyTarget: 0, spent: 950 };
+    expect(bucketDueStatus(cleared, periods[0], '2026-09-27')?.paid).toBe(true);
   });
 
   it('marks the envelope paid once spending reaches the monthly amount, not the set-aside', () => {

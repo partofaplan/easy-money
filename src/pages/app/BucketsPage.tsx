@@ -92,6 +92,11 @@ export function BucketsPage() {
                 <span className="small muted">
                   A bill that comes once a month, saved for a bit at a time. The envelope carries what you set aside until it&rsquo;s due.
                 </span>
+                {!b.dueDay && (
+                  <span className="small" style={{ color: 'var(--warn-text)', fontWeight: 700 }}>
+                    Pick a due day above so the envelope knows when the bill goes out.
+                  </span>
+                )}
                 <div className="grid-2" style={{ gap: 8 }}>
                   <div className="field">
                     <label htmlFor={`target-${b.id}`}>Monthly amount</label>
