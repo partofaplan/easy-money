@@ -62,10 +62,16 @@ export function BucketRow({ bucket, due, funding, onMarkPaid }: BucketRowProps) 
     : bucket.planned > 0
       ? Math.min(100, (bucket.spent / bucket.planned) * 100)
       : 0;
+  const partlyPaid = monthly && !paidOut && bucket.spent > 0 && monthly.step.dueOn !== null;
+  const surplus = monthly && !paidOut ? monthly.step.ready - monthly.target : 0;
   const amountLabel = monthly ? (
     paidOut ? (
       <>
         <b>{fmt(monthly.target)}</b> paid
+      </>
+    ) : partlyPaid ? (
+      <>
+        <b>{fmt(bucket.spent)}</b> paid, {fmt(monthly.target - bucket.spent)} to go
       </>
     ) : (
       <>
@@ -98,6 +104,7 @@ export function BucketRow({ bucket, due, funding, onMarkPaid }: BucketRowProps) 
               · short {fmt(monthly.step.short)} for {fmtShort(monthly.step.dueOn)}
             </span>
           )}
+          {surplus > 0 && <span> · {fmt(surplus)} more than the bill needs</span>}
         </span>
       )}
       {due && <DueBadge due={due} onMarkPaid={onMarkPaid} markedByHand={bucket.paidOn === due.dueOn} />}

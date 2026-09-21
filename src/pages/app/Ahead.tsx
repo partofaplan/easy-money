@@ -74,7 +74,11 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
 
   return (
     <div className="stack">
-      {summaries.map((s, i) => (
+      {summaries.map((s, i) => {
+        // An envelope that will not be full by its due date makes the paycheck tight too.
+        const envelopeShort = funding.some(({ steps }) => steps[i].short > 0);
+        const status = envelopeShort ? 'tight' : s.status;
+        return (
         <div key={s.period.payday} className="card stack" style={{ gap: 8, borderColor: i === 0 ? 'var(--accent)' : undefined, borderWidth: i === 0 ? 1.5 : 1 }}>
           <div className="between">
             <span className="stack" style={{ gap: 0 }}>
@@ -83,7 +87,7 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
             </span>
             <span className="stack" style={{ alignItems: 'flex-end', gap: 0 }}>
               <span style={{ fontWeight: 700, fontSize: 18 }}>{fmt(s.period.takeHome)}</span>
-              <span className={`status ${s.status}`}>{s.status === 'covered' ? 'Covered' : 'Tight'}</span>
+              <span className={`status ${status}`}>{status === 'covered' ? 'Covered' : 'Tight'}</span>
             </span>
           </div>
           <div className="stack" style={{ gap: 4, paddingTop: 8, borderTop: '1px solid var(--divider)' }}>
@@ -142,7 +146,8 @@ export function AheadPanel({ summaries, buckets, compact }: { summaries: PeriodS
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
