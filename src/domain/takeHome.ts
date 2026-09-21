@@ -5,7 +5,7 @@
  * It uses the static tables in data/taxTables.ts and is deliberately simple:
  * standard deduction only, no credits, flat state rates.
  */
-import type { PayFrequency } from './types';
+import type { PayFrequency, TaxSettings } from './types';
 import {
   FEDERAL_BRACKETS,
   MEDICARE_RATE,
@@ -20,7 +20,8 @@ import {
 export interface EstimateInput {
   gross: number;
   grossUnit: 'year' | 'hour';
-  hoursPerWeek: number;
+  /** Hours in one paycheck, used when `grossUnit` is 'hour'. */
+  hoursPerPaycheck: number;
   frequency: PayFrequency;
   stateCode: string;
   filing: FilingStatus;
@@ -60,7 +61,7 @@ export function bracketTax(taxable: number, brackets: { upTo: number; rate: numb
 
 export function estimateTakeHome(input: EstimateInput): Estimate {
   const paychecksPerYear = PAYCHECKS_PER_YEAR[input.frequency];
-  const annualGross = input.grossUnit === 'year' ? input.gross : input.gross * input.hoursPerWeek * 52;
+  const annualGross = input.grossUnit === 'year' ? input.gross : input.gross * input.hoursPerPaycheck * paychecksPerYear;
   const grossPerPaycheck = annualGross / paychecksPerYear;
 
   const retirement = grossPerPaycheck * (input.retirementPct / 100);
@@ -99,4 +100,23 @@ export function estimateTakeHome(input: EstimateInput): Estimate {
     annualTakeHome: takeHome * paychecksPerYear,
     stateApproximate: state?.approximate ?? false,
   };
+}
+
+export const DEFAULT_TAX: TaxSettings = { stateCode: '', filing: 'single', retirementPct: 0, healthPerPaycheck: 0 };
+
+/** Take-home for `hours` of hourly work in one paycheck, netted with the saved tax settings. */
+export function netForHours(rate: number, hours: number, frequency: PayFrequency, tax: TaxSettings | null): number {
+  if (rate <= 0 || hours <= 0) return 0;
+  const t = tax ?? DEFAULT_TAX;
+  const e = estimateTakeHome({
+    gross: rate,
+    grossUnit: 'hour',
+    hoursPerPaycheck: hours,
+    frequency,
+    stateCode: t.stateCode,
+    filing: t.filing,
+    retirementPct: t.retirementPct,
+    healthPerPaycheck: t.healthPerPaycheck,
+  });
+  return Math.round(e.takeHome);
 }

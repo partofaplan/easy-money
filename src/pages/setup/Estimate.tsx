@@ -6,28 +6,32 @@ import { SetupFrame } from '../../components/SetupFrame';
 import { STATE_TAXES, TAX_YEAR, type FilingStatus } from '../../data/taxTables';
 import { FREQUENCY_LABEL, nextPayday } from '../../domain/plan';
 import { estimateTakeHome } from '../../domain/takeHome';
+import type { TaxSettings } from '../../domain/types';
 import { fmt, fmtSigned } from '../../lib/money';
 import { useStore } from '../../state/store';
 
 export function Estimate() {
   const { data, answer } = useStore();
   const navigate = useNavigate();
-  const frequency = data.answers.payFrequency ?? 'biweekly';
+  const a = data.answers;
+  const frequency = a.payFrequency ?? 'biweekly';
+  const hourly = a.payType === 'hourly';
 
-  const [gross, setGross] = useState<number | null>(null);
-  const [unit, setUnit] = useState<'year' | 'hour'>('year');
-  const [hours, setHours] = useState<number | null>(40);
-  const [stateCode, setStateCode] = useState('CO');
-  const [filing, setFiling] = useState<FilingStatus>('single');
-  const [retirement, setRetirement] = useState<number | null>(null);
-  const [health, setHealth] = useState<number | null>(null);
+  const [gross, setGross] = useState<number | null>(hourly ? a.hourlyRate : null);
+  const [unit, setUnit] = useState<'year' | 'hour'>(hourly ? 'hour' : 'year');
+  const [hours, setHours] = useState<number | null>(a.typicalHours ?? defaultHours(frequency));
+  const [stateCode, setStateCode] = useState(a.tax?.stateCode ?? '');
+  const [filing, setFiling] = useState<FilingStatus>(a.tax?.filing ?? 'single');
+  const [retirement, setRetirement] = useState<number | null>(a.tax?.retirementPct ?? null);
+  const [health, setHealth] = useState<number | null>(a.tax?.healthPerPaycheck ?? null);
 
   const estimate = useMemo(() => {
     if (!gross || gross <= 0) return null;
+    if (unit === 'hour' && (!hours || hours <= 0)) return null;
     return estimateTakeHome({
       gross,
       grossUnit: unit,
-      hoursPerWeek: hours ?? 40,
+      hoursPerPaycheck: hours ?? 0,
       frequency,
       stateCode,
       filing,
@@ -42,6 +46,7 @@ export function Estimate() {
     return `${n} paychecks a year`;
   })();
   const stateName = STATE_TAXES.find((s) => s.code === stateCode)?.name ?? '';
+  const taxSettings: TaxSettings = { stateCode, filing, retirementPct: retirement ?? 0, healthPerPaycheck: health ?? 0 };
 
   return (
     <SetupFrame
@@ -74,8 +79,9 @@ export function Estimate() {
             </div>
             {unit === 'hour' && (
               <div className="field">
-                <label htmlFor="hours">Hours per week</label>
+                <label htmlFor="hours">Hours in a typical paycheck</label>
                 <MoneyInput id="hours" value={hours} onChange={setHours} prefix="" unit="hrs" />
+                <span className="small muted">Paid {FREQUENCY_LABEL[frequency]}: about {defaultHours(frequency)} hours for full time.</span>
               </div>
             )}
           </div>
@@ -100,6 +106,7 @@ export function Estimate() {
               <label htmlFor="state">State you live in</label>
               <div className="input">
                 <select id="state" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+                  <option value="">Not sure yet</option>
                   {STATE_TAXES.map((s) => (
                     <option key={s.code} value={s.code}>
                       {s.name}
@@ -178,9 +185,9 @@ export function Estimate() {
                   <Icon name="info" />
                 </span>
                 <span>
-                  An estimate from {TAX_YEAR} federal rates, the standard deduction, and a {stateName} rate
-                  {estimate.stateApproximate ? ' (a typical effective rate, since the state uses brackets)' : ''}. Your real stub may differ a little.
-                  Check it against one when you can.
+                  An estimate from {TAX_YEAR} federal rates and the standard deduction
+                  {stateName ? `, plus a ${stateName} rate${estimate.stateApproximate ? ' (a typical effective rate, since the state uses brackets)' : ''}` : '. Pick your state for a closer number'}
+                  . Your real stub may differ a little. Check it against one when you can.
                 </span>
               </div>
               <div className="stack" style={{ marginTop: 4 }}>
@@ -188,15 +195,27 @@ export function Estimate() {
                   type="button"
                   className="btn btn-primary"
                   onClick={() => {
-                    answer({ paycheckAmount: rounded });
+                    answer(
+                      unit === 'hour'
+                        ? { paycheckAmount: rounded, tax: taxSettings, payType: 'hourly', hourlyRate: gross, typicalHours: hours }
+                        : { paycheckAmount: rounded, tax: taxSettings, payType: 'salary' },
+                    );
                     navigate('/setup/ready');
                   }}
                 >
-                  Use {fmt(rounded)} in my budget
+                  {unit === 'hour' ? `Use ${fmt(rounded)} for ${hours} hours` : `Use ${fmt(rounded)} in my budget`}
                 </button>
-                <Link to="/setup/ready" className="btn btn-outline">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => {
+                    // Keep the tax details even when the number itself is not used.
+                    answer({ tax: taxSettings });
+                    navigate('/setup/ready');
+                  }}
+                >
                   Keep my own number
-                </Link>
+                </button>
               </div>
             </>
           ) : (
@@ -215,4 +234,9 @@ export function Estimate() {
       </div>
     </SetupFrame>
   );
+}
+
+/** Full-time hours in one paycheck for a pay frequency. */
+function defaultHours(frequency: string): number {
+  return { weekly: 40, biweekly: 80, semimonthly: 87, monthly: 173, irregular: 80 }[frequency] ?? 80;
 }

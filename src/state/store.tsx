@@ -7,7 +7,7 @@ import { newId } from '../lib/money';
 import type { Repository } from './repository';
 
 export const initialData: AppData = {
-  version: 3,
+  version: 4,
   setupComplete: false,
   answers: emptyAnswers,
   buckets: [],

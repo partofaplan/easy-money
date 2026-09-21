@@ -21,13 +21,16 @@ export function migrate(raw: unknown): AppData | null {
   let data = raw as { version?: number };
   if (data.version === 1) data = v1ToV2(data as V1Data);
   if (data.version === 2) data = v2ToV3(data as V2Data);
-  return data.version === 3 ? (data as AppData) : null;
+  if (data.version === 3) data = v3ToV4(data as V3Data);
+  return data.version === 4 ? (data as AppData) : null;
 }
 
 type V1Event = { id: string; source: string; amount: number; receivedOn: string; allocation: { kind: BonusAllocation['kind'] } | null };
 type V1Data = Omit<V2Data, 'version' | 'incomeEvents'> & { version: 1; incomeEvents: V1Event[] };
+type V3Answers = Omit<AppData['answers'], 'payType' | 'hourlyRate' | 'typicalHours' | 'tax'>;
+type V3Data = Omit<AppData, 'version' | 'answers'> & { version: 3; answers: V3Answers };
 type V2Bucket = Omit<AppData['buckets'][number], 'defaultAmount'>;
-type V2Data = Omit<AppData, 'version' | 'plans' | 'deposit' | 'extraPlanned' | 'buckets'> & { version: 2; buckets: V2Bucket[]; reserves?: unknown[] };
+type V2Data = Omit<V3Data, 'version' | 'plans' | 'deposit' | 'extraPlanned' | 'buckets'> & { version: 2; buckets: V2Bucket[]; reserves?: unknown[] };
 
 /** v1 events had only a received date; every decision now names the paycheck it counts in. */
 function v1ToV2(v1: V1Data): V2Data {
@@ -50,7 +53,7 @@ function v1ToV2(v1: V1Data): V2Data {
  * v3 adds per-paycheck plans, the confirmed deposit and a per-bucket default
  * amount; the short-lived envelope fields and paycheck reserves are dropped.
  */
-function v2ToV3(v2: V2Data): AppData {
+function v2ToV3(v2: V2Data): V3Data {
   const { reserves: _dropped, ...rest } = v2;
   return {
     ...rest,
@@ -59,6 +62,15 @@ function v2ToV3(v2: V2Data): AppData {
     plans: [],
     deposit: null,
     extraPlanned: 0,
+  };
+}
+
+/** v4 adds the pay type (salary or hourly) and saved tax settings. Everyone before was on a salary. */
+function v3ToV4(v3: V3Data): AppData {
+  return {
+    ...v3,
+    version: 4,
+    answers: { ...v3.answers, payType: 'salary', hourlyRate: null, typicalHours: null, tax: null },
   };
 }
 
