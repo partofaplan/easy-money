@@ -36,7 +36,7 @@ The design and flow are still moving, so nothing here depends on a backend.
 | `src/data/` | Static fixtures and tax tables |
 | `src/state/` | Store (React context + reducer), repository, theme |
 | `src/pages/setup/` | The interview: welcome, four questions, summary, estimator |
-| `src/pages/app/` | This paycheck, Ahead, Extra money, Buckets, Settings |
+| `src/pages/app/` | This paycheck, Plan, Ahead, Extra money, Buckets, Settings |
 | `src/components/` | Shared pieces: option cards, setup frame, app shell |
 | `src/styles/` | Theme tokens (light and dark) and base styles |
 

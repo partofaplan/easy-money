@@ -3,37 +3,43 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraForPayday, hasMonthlyTarget, projectFunding, suggestSmoothing } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, nextPayday, planAssigned, planFor } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
-import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
+import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
-import { useOutlook } from '../../state/selectors';
+import { useCurrentPaycheck, useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
-import { AheadPanel, SmoothingCard } from './Ahead';
+import { AheadPanel } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
 
 export function Home() {
-  const { data, addPurchase, markBucketPaid, startNextPaycheck } = useStore();
+  const { data, addPurchase, markBucketPaid, confirmPaycheck } = useStore();
   const desktop = useMediaQuery(DESKTOP);
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
   const [bucketId, setBucketId] = useState(data.buckets[0]?.id ?? '');
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [landed, setLanded] = useState<number | null>(null);
+  const [landedOn, setLandedOn] = useState<string>('');
 
   const outlook = useOutlook();
-  const period = outlook[0]?.period;
-  const takeHome = data.answers.paycheckAmount ?? 0;
-  const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
-  // Paying a monthly bill out of its envelope is not overspending this paycheck.
-  const spent = data.buckets.reduce((s, b) => s + (hasMonthlyTarget(b) ? Math.min(b.spent, b.planned) : b.spent), 0);
-  const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
-  const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
+  const { period: current, confirmed, takeHome, extraEvents, extra, planned, left } = useCurrentPaycheck();
+  const period = current ?? undefined;
+  const now = today();
+  const irregular = data.answers.payFrequency === 'irregular';
+  const following = period && data.answers.payFrequency ? nextPayday(period.payday, data.answers.payFrequency) : null;
+  // Which paycheck the confirm card is about: the current one until it is confirmed, then the next.
+  // For irregular pay the next date is whatever the user enters.
+  const toConfirm = period ? (confirmed ? (irregular && landedOn ? landedOn : following) : period.payday) : null;
+  const planToConfirm = toConfirm ? planFor(toConfirm, data.plans, data.buckets, data.answers) : null;
+  const assignedToConfirm = planToConfirm ? planAssigned(planToConfirm, data.buckets) : 0;
+  const extraToConfirm = toConfirm ? extraTotalForPayday(data.incomeEvents, toConfirm) : 0;
+  const planGap = planToConfirm ? planToConfirm.takeHome + extraToConfirm - assignedToConfirm : 0;
+  const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
   const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
   const waiting = data.incomeEvents.find((e) => e.allocation === null);
   const available = takeHome + extra;
-  const left = available - planned;
-  const smoothing = suggestSmoothing(outlook);
 
-  const now = today();
   const dueNow = period ? bucketsDueInPeriod(data.buckets, period, now).filter((d) => !d.due.paid) : [];
   const timing = period
     ? period.payday > now
@@ -102,10 +108,93 @@ export function Home() {
         </form>
       )}
 
+      {toConfirm && planToConfirm && (
+        <div className={`card ${confirmed ? '' : 'tint'} stack`} style={{ marginTop: 16, gap: 10 }}>
+          <div className="between" style={{ alignItems: 'flex-start' }}>
+            <span className="stack" style={{ gap: 2 }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>
+                {confirmed ? `Next paycheck ${fmtWeekday(toConfirm)}` : `Has your ${fmtWeekday(toConfirm)} paycheck landed?`}
+              </span>
+              <span className="small muted">
+                Planned {fmt(planToConfirm.takeHome)}
+                {extraToConfirm > 0 ? ` + ${fmt(extraToConfirm)} extra` : ''} · {fmt(assignedToConfirm)} assigned across {data.buckets.length} buckets.{' '}
+                {planGap !== 0 && (
+                  <span style={{ color: 'var(--warn-text)', fontWeight: 700 }}>{planGap > 0 ? `${fmt(planGap)} unassigned. ` : `${fmt(-planGap)} over. `}</span>
+                )}
+                <Link to="/app/plan">Adjust the plan</Link>
+              </span>
+            </span>
+            {confirming !== toConfirm && (
+              <button
+                type="button"
+                className={`btn btn-sm ${confirmed ? 'btn-outline' : 'btn-primary'}`}
+                style={{ minHeight: 40, flexShrink: 0 }}
+                onClick={() => {
+                  setConfirming(toConfirm);
+                  setLanded(planToConfirm.takeHome);
+                  if (irregular && confirmed) setLandedOn(following ?? addDays(period!.payday, 14));
+                }}
+              >
+                It landed
+              </button>
+            )}
+          </div>
+          {confirming === toConfirm && (
+            <form
+              className="row"
+              style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!landed || landed <= 0) return;
+                const early = confirmed && toConfirm > now;
+                if (
+                  !early ||
+                  window.confirm(`${fmtWeekday(toConfirm)} is ${daysBetween(now, toConfirm)} days away. Confirm anyway? This starts a new paycheck and resets this one's spending.`)
+                ) {
+                  confirmPaycheck(toConfirm, landed);
+                  setConfirming(null);
+                }
+              }}
+            >
+              {irregular && confirmed && (
+                <div className="field">
+                  <label htmlFor="landed-on">Paid on</label>
+                  <div className="input">
+                    <input id="landed-on" type="date" value={landedOn} min={addDays(period!.payday, 1)} onChange={(e) => setLandedOn(e.target.value)} />
+                  </div>
+                </div>
+              )}
+              <div className="field grow">
+                <label htmlFor="landed">What actually landed</label>
+                <MoneyInput id="landed" value={landed} onChange={setLanded} />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ minHeight: 48 }} disabled={!landed || landed <= 0}>
+                Fill my buckets
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setConfirming(null)}>
+                Not yet
+              </button>
+              {landed !== null && landed > 0 && (() => {
+                const after = landed + extraToConfirm - assignedToConfirm;
+                if (after === 0) return null;
+                return (
+                  <span className="small muted" style={{ flexBasis: '100%' }}>
+                    {landed !== planToConfirm.takeHome
+                      ? `${fmt(Math.abs(landed - planToConfirm.takeHome))} ${landed > planToConfirm.takeHome ? 'more' : 'less'} than planned. `
+                      : ''}
+                    {after > 0 ? `You'll have ${fmt(after)} left to assign.` : `The buckets will be ${fmt(-after)} over; trim one after.`}
+                  </span>
+                );
+              })()}
+            </form>
+          )}
+        </div>
+      )}
+
       <div className="hero" style={{ marginTop: 20 }}>
         <div className="between" style={{ alignItems: 'flex-start' }}>
           <span className="stack" style={{ gap: 6 }}>
-            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : 'Take-home this paycheck'}</span>
+            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}</span>
             <span className="display amount">{fmt(available)}</span>
             {extra > 0 && (
               <span style={{ fontSize: 14, opacity: 0.9 }}>
@@ -148,21 +237,6 @@ export function Home() {
         </Link>
       )}
 
-      {period && (
-        <div className="between" style={{ marginTop: 10, padding: '0 4px' }}>
-          <span className="small muted">Paid again? Move on and carry your envelopes forward.</span>
-          <button
-            type="button"
-            className="link small"
-            onClick={() => {
-              if (window.confirm('Start the next paycheck? Envelope balances carry forward and this paycheck\'s spending resets.')) startNextPaycheck();
-            }}
-          >
-            Start the next paycheck
-          </button>
-        </div>
-      )}
-
       <div className="between" style={{ marginTop: 22, alignItems: 'baseline' }}>
         <h2>Your buckets</h2>
         <span className="small muted" style={{ fontWeight: 700 }}>
@@ -184,13 +258,11 @@ export function Home() {
       <div className="buckets" style={{ marginTop: 12 }}>
         {data.buckets.map((b) => {
           const due = period ? bucketDueStatus(b, period, now) : null;
-          const funding = period && hasMonthlyTarget(b) ? projectFunding(b, [period])[0] : null;
           return (
             <BucketRow
               key={b.id}
               bucket={b}
               due={due}
-              funding={funding}
               onMarkPaid={due ? (paid) => markBucketPaid(b.id, paid ? due.dueOn : undefined) : undefined}
             />
           );
@@ -210,7 +282,6 @@ export function Home() {
       {main}
       <aside className="aside" aria-label="Coming up">
         {data.answers.horizon !== 'this' && <AheadPanel summaries={outlook} buckets={data.buckets} compact />}
-        {smoothing && <SmoothingCard smoothing={smoothing} />}
         {data.answers.bonuses !== 'none' && <ExtraMoneyPanel compact />}
       </aside>
     </div>

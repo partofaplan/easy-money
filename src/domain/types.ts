@@ -19,8 +19,10 @@ export interface Answers {
 export interface Bucket {
   id: string;
   name: string;
-  /** Planned for the current paycheck, in dollars. */
+  /** Filled into this bucket for the current paycheck, in dollars. */
   planned: number;
+  /** The amount a new paycheck plan starts from. Edited on the Buckets screen. */
+  defaultAmount: number;
   /** Spent (or moved, for savings) in the current paycheck. */
   spent: number;
   kind: 'spending' | 'savings';
@@ -32,16 +34,6 @@ export interface Bucket {
   dueDay?: number;
   /** ISO due date the user marked as paid by hand, when spending alone would not show it. */
   paidOn?: string;
-  /**
-   * For a bill that comes once a month but is saved for over several paychecks:
-   * the amount needed by each due date. `planned` is then the per-paycheck
-   * set-aside and `balance` carries what has been saved so far.
-   */
-  monthlyTarget?: number;
-  /** Money set aside in earlier paychecks and not yet paid out. */
-  balance?: number;
-  /** How many paychecks the monthly amount is spread across (for the suggestion). */
-  fundOver?: number;
 }
 
 export interface Bill {
@@ -77,13 +69,18 @@ export interface BonusAllocation {
   payday: string;
 }
 
-/** Money set aside from one paycheck to help a later one. */
-export interface Reserve {
-  id: string;
-  /** ISO payday of the paycheck the money comes from. */
-  fromPayday: string;
-  /** ISO payday of the paycheck it helps. */
-  forPayday: string;
+export interface PaycheckPlan {
+  /** ISO payday this plan is for. */
+  payday: string;
+  /** Take-home expected on that payday. */
+  takeHome: number;
+  /** Amount to fill into each bucket, by bucket id. Buckets not listed get 0. */
+  allocations: Record<string, number>;
+}
+
+/** The paycheck the user confirmed has landed, and what actually arrived. */
+export interface Deposit {
+  payday: string;
   amount: number;
 }
 
@@ -96,13 +93,18 @@ export interface PayPeriod {
 }
 
 export interface AppData {
-  version: 2;
+  version: 3;
   setupComplete: boolean;
   answers: Answers;
   buckets: Bucket[];
   bills: Bill[];
   incomeEvents: IncomeEvent[];
-  reserves: Reserve[];
+  /** Plans for upcoming paychecks, only stored once the user edits one. */
+  plans: PaycheckPlan[];
+  /** The current paycheck's confirmed deposit, or null until the user confirms it. */
+  deposit: Deposit | null;
+  /** Paychecks to plan beyond the horizon from setup, added with "Plan another paycheck". */
+  extraPlanned: number;
 }
 
 export const emptyAnswers: Answers = {

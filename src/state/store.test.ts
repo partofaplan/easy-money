@@ -30,37 +30,44 @@ describe('reducer: extra money', () => {
   });
 });
 
-describe('reducer: next paycheck', () => {
-  it('advances the payday, pays out due envelopes, carries the rest and resets spending', () => {
-    const before = demo();
-    const state = reducer(before, { type: 'startNextPaycheck' });
-    expect(state.answers.nextPayday).toBe('2026-10-10');
-    // Rent was due Oct 1 inside the paycheck that just ended: the envelope is assumed to have paid it.
-    const rent = state.buckets.find((b) => b.id === 'housing')!;
-    expect(rent.balance).toBe(0);
-    expect(rent.spent).toBe(0);
-    // An envelope whose bill is not due until the next paycheck keeps saving.
-    const saving = reducer(
-      { ...before, buckets: [{ ...before.buckets[0], dueDay: 20 }] },
-      { type: 'startNextPaycheck' },
-    ).buckets[0];
-    expect(saving.balance).toBe(950 + 950);
-    const groceries = state.buckets.find((b) => b.id === 'groceries')!;
-    expect(groceries.spent).toBe(0);
-    expect(groceries.balance).toBeUndefined();
+describe('reducer: paycheck plans and confirmation', () => {
+  it('stores a plan per payday, replacing an earlier one', () => {
+    const plan = { payday: '2026-10-24', takeHome: 2200, allocations: { housing: 1900 } };
+    let state = reducer(demo(), { type: 'setPlan', plan });
+    state = reducer(state, { type: 'setPlan', plan: { ...plan, takeHome: 2300 } });
+    expect(state.plans.filter((p) => p.payday === '2026-10-24')).toHaveLength(1);
+    expect(state.plans.map((p) => p.payday)).toEqual(['2026-10-10', '2026-10-24']);
   });
 
-  it('honours a bill marked paid by hand when carrying the envelope', () => {
+  it('confirms the current paycheck: records the deposit and fills buckets', () => {
+    const start = { ...demo(), deposit: null };
+    const state = reducer(start, { type: 'confirmPaycheck', payday: '2026-09-26', amount: 2200 });
+    expect(state.deposit).toEqual({ payday: '2026-09-26', amount: 2200 });
+    expect(state.answers.nextPayday).toBe('2026-09-26');
+    expect(state.buckets.find((b) => b.id === 'housing')).toMatchObject({ planned: 950, spent: 950 });
+  });
+
+  it('confirms the next paycheck: advances, fills from its plan, resets spending', () => {
     const marked = reducer(demo(), { type: 'markBucketPaid', bucketId: 'housing', dueOn: '2026-10-01' });
-    const state = reducer(marked, { type: 'startNextPaycheck' });
-    const rent = state.buckets.find((b) => b.id === 'housing')!;
-    expect(rent.balance).toBe(0);
-    expect(rent.paidOn).toBeUndefined();
+    const state = reducer(marked, { type: 'confirmPaycheck', payday: '2026-10-10', amount: 2140 });
+    expect(state.answers.nextPayday).toBe('2026-10-10');
+    expect(state.deposit).toEqual({ payday: '2026-10-10', amount: 2140 });
+    const bills = state.buckets.find((b) => b.id === 'bills')!;
+    expect(bills).toMatchObject({ planned: 360, spent: 0 });
+    expect(state.buckets.find((b) => b.id === 'housing')?.paidOn).toBeUndefined();
+    // Once confirmed, the buckets are the truth and the stored plan goes.
+    expect(state.plans).toEqual([]);
   });
 
-  it('pays the envelope out before carrying the rest', () => {
-    const paid = reducer(demo(), { type: 'addPurchase', bucketId: 'housing', amount: 1900 });
-    const state = reducer(paid, { type: 'startNextPaycheck' });
-    expect(state.buckets.find((b) => b.id === 'housing')?.balance).toBe(0);
+  it('accepts any later date as the next paycheck when pay is irregular', () => {
+    const irregular = { ...demo(), answers: { ...demo().answers, payFrequency: 'irregular' as const } };
+    const state = reducer(irregular, { type: 'confirmPaycheck', payday: '2026-10-03', amount: 1800 });
+    expect(state.answers.nextPayday).toBe('2026-10-03');
+    expect(state.deposit?.amount).toBe(1800);
+  });
+
+  it('ignores a confirmation for a paycheck that is neither current nor next', () => {
+    const state = reducer(demo(), { type: 'confirmPaycheck', payday: '2026-10-24', amount: 2140 });
+    expect(state).toEqual(demo());
   });
 });

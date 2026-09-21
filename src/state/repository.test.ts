@@ -16,7 +16,10 @@ describe('migrate', () => {
       ],
     };
     const out = migrate(v1)!;
-    expect(out.version).toBe(2);
+    expect(out.version).toBe(3);
+    expect(out.plans).toEqual([]);
+    expect(out.deposit).toBeNull();
+    expect('reserves' in out).toBe(false);
     expect(out.incomeEvents[0]).toMatchObject({ date: '2026-09-30', status: 'received', allocation: null });
     expect(out.incomeEvents[1].allocation).toEqual({ kind: 'paycheck', payday: '2026-09-26' });
     expect(migrate(out)).toEqual(out);
@@ -24,6 +27,10 @@ describe('migrate', () => {
 
   it('rejects unknown shapes', () => {
     expect(migrate(null)).toBeNull();
+    const v2 = { version: 2, buckets: [{ id: 'a', name: 'A', planned: 1, spent: 0, kind: 'spending', monthlyTarget: 5, balance: 2 }], incomeEvents: [], answers: {} };
+    const out = migrate(v2)!;
+    expect(out.version).toBe(3);
+    expect(out.buckets[0]).toEqual({ id: 'a', name: 'A', planned: 1, defaultAmount: 1, spent: 0, kind: 'spending', dueDay: undefined, paidOn: undefined });
     expect(migrate({ version: 7 })).toBeNull();
   });
 });

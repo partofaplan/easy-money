@@ -3,9 +3,8 @@
  * allocations, which bills land in which paycheck, and whether a paycheck
  * looks tight.
  */
-import type { Answers, Bill, Bucket, IncomeEvent, PayFrequency, PayPeriod, PlanningHorizon, Reserve } from './types';
+import type { Answers, Bill, Bucket, Deposit, IncomeEvent, PaycheckPlan, PayFrequency, PayPeriod, PlanningHorizon } from './types';
 import { STARTER_BUCKETS } from '../data/fixtures';
-import { PAYCHECKS_PER_YEAR } from '../data/taxTables';
 import { addDays, addMonths, parseISO, toISO } from '../lib/dates';
 import { roundTo } from '../lib/money';
 
@@ -63,13 +62,14 @@ export function suggestBuckets(paycheck: number): Bucket[] {
     id: t.id,
     name: t.name,
     planned: roundTo(paycheck * t.share, 10),
+    defaultAmount: 0,
     spent: 0,
     kind: t.kind,
   }));
   const assigned = buckets.reduce((sum, b) => sum + b.planned, 0);
   const other = buckets.find((b) => b.id === 'other') ?? buckets[buckets.length - 1];
   other.planned = Math.max(0, other.planned + Math.round(paycheck - assigned));
-  return buckets;
+  return buckets.map((b) => ({ ...b, defaultAmount: b.planned }));
 }
 
 /** Re-spread a paycheck over an existing bucket list, keeping their relative sizes. */
@@ -80,7 +80,7 @@ export function rescaleBuckets(buckets: Bucket[], paycheck: number): Bucket[] {
   const assigned = scaled.reduce((s, b) => s + b.planned, 0);
   const last = scaled[scaled.length - 1];
   last.planned = Math.max(0, last.planned + Math.round(paycheck - assigned));
-  return scaled;
+  return scaled.map((b) => ({ ...b, defaultAmount: b.planned }));
 }
 
 export function billsInPeriod(bills: Bill[], period: PayPeriod): Bill[] {
@@ -96,8 +96,6 @@ export interface PeriodSummary {
   /** Bonuses and other extra money planned into this paycheck. */
   extraIncome: IncomeEvent[];
   extraTotal: number;
-  /** Set aside for later paychecks (negative) or brought in from earlier ones (positive). */
-  reserveNet: number;
   leftForBuckets: number;
   status: 'covered' | 'tight';
 }
@@ -119,22 +117,18 @@ export function extraTotalForPayday(events: IncomeEvent[], payday: string | null
   return extraForPayday(events, payday).reduce((s, e) => s + e.amount, 0);
 }
 
-export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[], events: IncomeEvent[]): PeriodSummary {
+export function summarizePeriod(period: PayPeriod, bills: Bill[], events: IncomeEvent[]): PeriodSummary {
   const inPeriod = billsInPeriod(bills, period);
   const billsTotal = inPeriod.reduce((s, b) => s + b.amount, 0);
-  const out = reserves.filter((r) => r.fromPayday === period.payday).reduce((s, r) => s + r.amount, 0);
-  const inn = reserves.filter((r) => r.forPayday === period.payday).reduce((s, r) => s + r.amount, 0);
-  const reserveNet = inn - out;
   const extraIncome = extraForPayday(events, period.payday);
   const extraTotal = extraIncome.reduce((s, e) => s + e.amount, 0);
-  const leftForBuckets = period.takeHome + extraTotal - billsTotal + reserveNet;
+  const leftForBuckets = period.takeHome + extraTotal - billsTotal;
   return {
     period,
     bills: inPeriod,
     billsTotal,
     extraIncome,
     extraTotal,
-    reserveNet,
     leftForBuckets,
     status: leftForBuckets < period.takeHome * TIGHT_SHARE ? 'tight' : 'covered',
   };
@@ -145,46 +139,54 @@ export function periodForDate(periods: PayPeriod[], date: string): PayPeriod | n
   return periods.find((p) => date >= p.payday && date <= p.end) ?? null;
 }
 
-export interface Smoothing {
-  /** The tight paycheck this helps. */
-  forPayday: string;
-  /** Paychecks to set money aside from. */
-  fromPaydays: string[];
-  /** Amount to set aside from each. */
-  perPaycheck: number;
-}
-
-/**
- * If a later paycheck is tight and earlier ones are covered, suggest setting a
- * round amount aside from each earlier paycheck so the tight one clears the bar.
- */
-export function suggestSmoothing(summaries: PeriodSummary[]): Smoothing | null {
-  const tightIndex = summaries.findIndex((s) => s.status === 'tight');
-  if (tightIndex <= 0) return null;
-  const tight = summaries[tightIndex];
-  const shortfall = tight.period.takeHome * TIGHT_SHARE - tight.leftForBuckets;
-  if (shortfall <= 0) return null;
-
-  // Start with every covered paycheck before the tight one, then drop any that
-  // would itself become tight, re-splitting the amount among the rest.
-  let donors = summaries.slice(0, tightIndex).filter((s) => s.status === 'covered');
-  while (donors.length > 0) {
-    const perPaycheck = Math.ceil(shortfall / donors.length / 10) * 10;
-    const able = donors.filter((d) => d.leftForBuckets - perPaycheck >= d.period.takeHome * TIGHT_SHARE);
-    if (able.length === donors.length) {
-      return { forPayday: tight.period.payday, fromPaydays: donors.map((d) => d.period.payday), perPaycheck };
-    }
-    donors = able;
-  }
-  return null;
-}
-
 /** Everything the Ahead view needs, derived from answers and data. */
-export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[], events: IncomeEvent[]): PeriodSummary[] {
+export interface OutlookInput {
+  answers: Answers;
+  bills: Bill[];
+  events: IncomeEvent[];
+  plans: PaycheckPlan[];
+  deposit: Deposit | null;
+  /** Paychecks to include beyond the horizon from setup. */
+  extra?: number;
+}
+
+/** Take-home for a payday: what actually landed, else what the plan expects, else the setup default. */
+export function takeHomeFor(payday: string, answers: Answers, plans: PaycheckPlan[], deposit: Deposit | null): number {
+  if (deposit?.payday === payday) return deposit.amount;
+  return plans.find((p) => p.payday === payday)?.takeHome ?? answers.paycheckAmount ?? 0;
+}
+
+export function buildOutlook({ answers, bills, events, plans, deposit, extra = 0 }: OutlookInput): PeriodSummary[] {
   if (!answers.payFrequency || !answers.nextPayday) return [];
-  const takeHome = answers.paycheckAmount ?? 0;
-  const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday);
-  return payPeriods(answers.nextPayday, answers.payFrequency, takeHome, count).map((p) => summarizePeriod(p, bills, reserves, events));
+  const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday) + extra;
+  return payPeriods(answers.nextPayday, answers.payFrequency, 0, count)
+    .map((p) => ({ ...p, takeHome: takeHomeFor(p.payday, answers, plans, deposit) }))
+    .map((p) => summarizePeriod(p, bills, events));
+}
+
+/** The plan for a payday: the stored one, or a fresh one from each bucket's default amount. */
+export function planFor(payday: string, plans: PaycheckPlan[], buckets: Bucket[], answers: Answers): PaycheckPlan {
+  const stored = plans.find((p) => p.payday === payday);
+  if (stored) return stored;
+  return {
+    payday,
+    takeHome: answers.paycheckAmount ?? 0,
+    allocations: Object.fromEntries(buckets.map((b) => [b.id, b.defaultAmount])),
+  };
+}
+
+/** A plan's amount for a bucket. A bucket added after the plan was stored uses its default. */
+export function plannedAmount(plan: PaycheckPlan, bucket: Bucket): number {
+  return plan.allocations[bucket.id] ?? bucket.defaultAmount;
+}
+
+export function planAssigned(plan: PaycheckPlan, buckets: Bucket[]): number {
+  return buckets.reduce((s, b) => s + plannedAmount(plan, b), 0);
+}
+
+/** Buckets with their amounts filled from a plan. */
+export function fillFromPlan(buckets: Bucket[], plan: PaycheckPlan): Bucket[] {
+  return buckets.map((b) => ({ ...b, planned: plannedAmount(plan, b) }));
 }
 
 export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
@@ -223,9 +225,9 @@ export interface DueStatus {
 /** Whether a bucket is due within a paycheck, and where it stands. */
 export function bucketDueStatus(bucket: Bucket, period: PayPeriod, todayISO: string): DueStatus | null {
   const dueOn = dueDateInPeriod(bucket.dueDay, period);
-  if (!dueOn) return null;
-  const need = hasMonthlyTarget(bucket) ? bucket.monthlyTarget : bucket.planned;
-  const paid = bucket.paidOn === dueOn || (need > 0 && bucket.spent >= need);
+  // Nothing planned for this paycheck means the bill is being paid from another one: no reminder.
+  if (!dueOn || bucket.planned <= 0) return null;
+  const paid = bucket.paidOn === dueOn || bucket.spent >= bucket.planned;
   return { dueOn, paid, overdue: !paid && todayISO > dueOn };
 }
 
@@ -251,68 +253,3 @@ export function bucketsDueInPeriod(buckets: Bucket[], period: PayPeriod, todayIS
     })
     .sort((a, b) => a.due.dueOn.localeCompare(b.due.dueOn));
 }
-
-/** True for buckets saved for across paychecks toward a monthly bill. */
-export function hasMonthlyTarget(bucket: Bucket): bucket is Bucket & { monthlyTarget: number } {
-  return typeof bucket.monthlyTarget === 'number' && bucket.monthlyTarget > 0;
-}
-
-/** Paychecks in a typical month for a pay frequency: how many a monthly bill can be split across. */
-export function paychecksPerMonth(frequency: PayFrequency): number {
-  return Math.max(1, Math.round(PAYCHECKS_PER_YEAR[frequency] / 12));
-}
-
-/** Even per-paycheck set-aside for a monthly amount spread across `over` paychecks. */
-export function suggestedSetAside(monthlyTarget: number, over: number): number {
-  return Math.ceil(monthlyTarget / Math.max(1, over));
-}
-
-/** One paycheck's step in saving toward a bucket's monthly target. */
-export interface FundingStep {
-  payday: string;
-  /** Set aside from this paycheck. */
-  setAside: number;
-  /** In the envelope after this paycheck's set-aside, before any payment. */
-  ready: number;
-  /** ISO date the bill is due within this paycheck, if any. */
-  dueOn: string | null;
-  /** Amount still missing on the due date; 0 when the envelope covers it. */
-  short: number;
-  /** True when the bill due in this paycheck has already been paid (current paycheck only). */
-  paid: boolean;
-  /** Left in the envelope after paying the bill (or carried forward if none is due). */
-  carried: number;
-}
-
-/**
- * Project how a bucket with a monthly target fills up and pays out across the
- * given paychecks. Set-aside happens on payday, before any due date in that
- * paycheck. `spentSoFar` is what the current paycheck has already paid.
- */
-export function projectFunding(bucket: Bucket, periods: PayPeriod[]): FundingStep[] {
-  const target = hasMonthlyTarget(bucket) ? bucket.monthlyTarget : 0;
-  let carried = bucket.balance ?? 0;
-  return periods.map((period, i) => {
-    const setAside = bucket.planned;
-    const ready = carried + setAside;
-    const dueOn = dueDateInPeriod(bucket.dueDay, period);
-    const paid = i === 0 && dueOn !== null && (bucket.paidOn === dueOn || bucket.spent >= target);
-    const short = dueOn && !paid ? Math.max(0, target - ready) : 0;
-    // What leaves the envelope: the bill when due, plus anything actually spent this paycheck beyond it.
-    const outflow = envelopeOutflow(bucket, dueOn !== null, i === 0);
-    carried = Math.max(0, ready - outflow);
-    return { payday: period.payday, setAside, ready, dueOn, short, paid, carried };
-  });
-}
-
-/**
- * Money leaving an envelope in a paycheck: the monthly bill when it is due
- * (or was marked paid), and for the current paycheck at least what was
- * actually spent. Shared by the projection and the next-paycheck rollover.
- */
-export function envelopeOutflow(bucket: Bucket, billDue: boolean, isCurrent: boolean): number {
-  const target = hasMonthlyTarget(bucket) ? bucket.monthlyTarget : 0;
-  const bill = billDue || bucket.paidOn ? target : 0;
-  return isCurrent ? Math.max(bucket.spent, bill) : bill;
-}
-
