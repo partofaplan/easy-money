@@ -38,17 +38,26 @@ export interface IncomeEvent {
   id: string;
   source: string;
   amount: number;
-  /** ISO date */
-  receivedOn: string;
-  /** Where it went, once the user decides. */
+  /** ISO date it arrived, or is expected to arrive. */
+  date: string;
+  /** Expected money is planned ahead; received money is decided on when it lands. */
+  status: 'expected' | 'received';
+  /** Where it goes, once the user decides. */
   allocation: BonusAllocation | null;
 }
 
-export type BonusAllocation =
-  | { kind: 'savings' }
-  | { kind: 'debt' }
-  | { kind: 'split' }
-  | { kind: 'paycheck' };
+export type AllocationKind = 'savings' | 'debt' | 'split' | 'paycheck';
+
+export interface BonusAllocation {
+  kind: AllocationKind;
+  /**
+   * The paycheck this money is counted in, by payday. Expected money is planned
+   * into a future paycheck; received money goes into the paycheck that was
+   * current when the decision was made. Debt payments are recorded here too
+   * but never counted as available money.
+   */
+  payday: string;
+}
 
 /** Money set aside from one paycheck to help a later one. */
 export interface Reserve {
@@ -69,7 +78,7 @@ export interface PayPeriod {
 }
 
 export interface AppData {
-  version: 1;
+  version: 2;
   setupComplete: boolean;
   answers: Answers;
   buckets: Bucket[];

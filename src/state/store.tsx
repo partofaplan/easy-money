@@ -7,7 +7,7 @@ import { newId } from '../lib/money';
 import { LocalStorageRepository, type Repository } from './repository';
 
 export const initialData: AppData = {
-  version: 1,
+  version: 2,
   setupComplete: false,
   answers: emptyAnswers,
   buckets: [],
@@ -16,7 +16,7 @@ export const initialData: AppData = {
   reserves: [],
 };
 
-type Action =
+export type Action =
   | { type: 'answer'; patch: Partial<Answers> }
   | { type: 'setBuckets'; buckets: Bucket[] }
   | { type: 'completeSetup' }
@@ -24,10 +24,11 @@ type Action =
   | { type: 'addPurchase'; bucketId: string; amount: number }
   | { type: 'addIncome'; event: Omit<IncomeEvent, 'id' | 'allocation'> }
   | { type: 'allocateIncome'; eventId: string; allocation: BonusAllocation }
+  | { type: 'markReceived'; eventId: string }
   | { type: 'addReserves'; reserves: Omit<Reserve, 'id'>[] }
   | { type: 'reset' };
 
-function reducer(state: AppData, action: Action): AppData {
+export function reducer(state: AppData, action: Action): AppData {
   switch (action.type) {
     case 'answer':
       return { ...state, answers: { ...state.answers, ...action.patch } };
@@ -66,6 +67,8 @@ function reducer(state: AppData, action: Action): AppData {
     case 'allocateIncome': {
       const event = state.incomeEvents.find((e) => e.id === action.eventId);
       if (!event) return state;
+      // Expected money is only planned into a paycheck; buckets change when it actually lands.
+      if (event.status === 'expected' && action.allocation.kind !== 'paycheck') return state;
       let buckets = state.buckets;
       const bump = (id: string, amount: number) =>
         buckets.map((b) => (b.id === id ? { ...b, planned: b.planned + amount, spent: b.kind === 'savings' ? b.spent + amount : b.spent } : b));
@@ -81,21 +84,10 @@ function reducer(state: AppData, action: Action): AppData {
           if (otherId) buckets = bump(otherId, event.amount - half);
           break;
         }
-        case 'paycheck': {
-          const spending = buckets.filter((b) => b.kind === 'spending');
-          const total = spending.reduce((s, b) => s + b.planned, 0) || 1;
-          let given = 0;
-          buckets = buckets.map((b) => {
-            if (b.kind !== 'spending') return b;
-            const share = Math.round((b.planned / total) * event.amount);
-            given += share;
-            return { ...b, planned: b.planned + share };
-          });
-          if (otherId && given !== event.amount) buckets = bump(otherId, event.amount - given);
-          break;
-        }
+        case 'paycheck':
         case 'debt':
-          // Recorded only; the POC has no debt accounts to pay from.
+          // Money folded into a paycheck is assigned by hand on the Buckets screen;
+          // a debt payment leaves the budget. Neither changes buckets here.
           break;
       }
       return {
@@ -104,6 +96,12 @@ function reducer(state: AppData, action: Action): AppData {
         incomeEvents: state.incomeEvents.map((e) => (e.id === action.eventId ? { ...e, allocation: action.allocation } : e)),
       };
     }
+
+    case 'markReceived':
+      return {
+        ...state,
+        incomeEvents: state.incomeEvents.map((e) => (e.id === action.eventId ? { ...e, status: 'received' } : e)),
+      };
 
     case 'addReserves':
       return { ...state, reserves: [...state.reserves, ...action.reserves.map((r) => ({ ...r, id: newId('res') }))] };
@@ -122,6 +120,7 @@ interface Store {
   addPurchase: (bucketId: string, amount: number) => void;
   addIncome: (event: Omit<IncomeEvent, 'id' | 'allocation'>) => void;
   allocateIncome: (eventId: string, allocation: BonusAllocation) => void;
+  markReceived: (eventId: string) => void;
   addReserves: (reserves: Omit<Reserve, 'id'>[]) => void;
   reset: () => void;
 }
@@ -147,6 +146,7 @@ export function StoreProvider({ children, repository = defaultRepository }: { ch
       addPurchase: (bucketId, amount) => dispatch({ type: 'addPurchase', bucketId, amount }),
       addIncome: (event) => dispatch({ type: 'addIncome', event }),
       allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
+      markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
       addReserves: (reserves) => dispatch({ type: 'addReserves', reserves }),
       reset: () => {
         repository.clear();

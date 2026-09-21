@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { buildOutlook, extraAllocated, suggestSmoothing } from '../../domain/plan';
+import { extraForPayday, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
+import { useOutlook } from '../../state/selectors';
 import { useStore } from '../../state/store';
 import { AheadPanel, SmoothingCard } from './Ahead';
 import { ExtraMoneyPanel } from './ExtraMoney';
@@ -18,12 +19,15 @@ export function Home() {
   const [amount, setAmount] = useState<number | null>(null);
   const [bucketId, setBucketId] = useState(data.buckets[0]?.id ?? '');
 
-  const outlook = buildOutlook(data.answers, data.bills, data.reserves);
+  const outlook = useOutlook();
   const period = outlook[0]?.period;
   const takeHome = data.answers.paycheckAmount ?? 0;
   const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
   const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
-  const extra = extraAllocated(data.incomeEvents);
+  const extraEvents = extraForPayday(data.incomeEvents, period?.payday ?? null);
+  const extra = extraEvents.reduce((s, e) => s + e.amount, 0);
+  const extraLabel = extraEvents.map((e) => (e.status === 'expected' ? `${fmt(e.amount)} expected ${fmtShort(e.date)}` : `${fmt(e.amount)} extra`)).join(' + ');
+  const waiting = data.incomeEvents.find((e) => e.allocation === null);
   const available = takeHome + extra;
   const left = available - planned;
   const smoothing = suggestSmoothing(outlook);
@@ -103,7 +107,7 @@ export function Home() {
             <span className="display amount">{fmt(available)}</span>
             {extra > 0 && (
               <span style={{ fontSize: 14, opacity: 0.9 }}>
-                {fmt(takeHome)} take-home + {fmt(extra)} extra money
+                {fmt(takeHome)} take-home + {extraLabel}
               </span>
             )}
           </span>
@@ -124,6 +128,23 @@ export function Home() {
           </span>
         </div>
       </div>
+
+      {!desktop && waiting && data.answers.bonuses !== 'none' && (
+        <Link to="/app/extra" className="card row" style={{ marginTop: 12, textDecoration: 'none', color: 'var(--ink)', alignItems: 'flex-start' }}>
+          <span className="iconbox clay">
+            <Icon name={waiting.status === 'expected' ? 'calendar' : 'star'} />
+          </span>
+          <span className="stack grow" style={{ gap: 2 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>
+              {waiting.status === 'expected' ? `${fmt(waiting.amount)} expected ${fmtShort(waiting.date)}` : `A ${fmt(waiting.amount)} bonus landed`}
+            </span>
+            <span className="small muted">{waiting.status === 'expected' ? 'Plan it into a paycheck so it counts ahead of time.' : 'Decide where it goes.'}</span>
+          </span>
+          <span style={{ color: 'var(--accent)', display: 'inline-flex' }}>
+            <Icon name="chevronRight" size={20} strokeWidth={2.4} />
+          </span>
+        </Link>
+      )}
 
       <div className="between" style={{ marginTop: 22, alignItems: 'baseline' }}>
         <h2>Your buckets</h2>

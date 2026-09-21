@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { horizonCount, nextPayday, payPeriods, suggestBuckets, suggestSmoothing, summarizePeriod } from './plan';
+import { extraTotalForPayday, horizonCount, nextPayday, payPeriods, periodForDate, suggestBuckets, suggestSmoothing, summarizePeriod } from './plan';
 import { SAMPLE_BILLS } from '../data/fixtures';
 
 describe('nextPayday', () => {
@@ -36,7 +36,7 @@ describe('suggestBuckets', () => {
 
 describe('periods and smoothing', () => {
   const periods = payPeriods('2026-09-26', 'biweekly', 2140, 3);
-  const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, []));
+  const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], []));
 
   it('places bills in the paycheck that pays them', () => {
     expect(summaries[0].bills.map((b) => b.name)).toEqual(['Rent', 'Phone']);
@@ -60,7 +60,44 @@ describe('periods and smoothing', () => {
   it('applying the reserve clears the tight paycheck', () => {
     const s = suggestSmoothing(summaries)!;
     const reserves = s.fromPaydays.map((from, i) => ({ id: String(i), fromPayday: from, forPayday: s.forPayday, amount: s.perPaycheck }));
-    const after = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, reserves));
+    const after = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, reserves, []));
     expect(after.map((x) => x.status)).toEqual(['covered', 'covered', 'covered']);
+  });
+});
+
+describe('planned bonuses', () => {
+  const periods = payPeriods('2026-09-26', 'biweekly', 2140, 3);
+  const bonus = { id: 'b1', source: 'Acme Co', amount: 800, date: '2026-10-15', status: 'expected' as const, allocation: null };
+
+  it('finds the paycheck a date falls in', () => {
+    expect(periodForDate(periods, '2026-10-15')?.payday).toBe('2026-10-10');
+    expect(periodForDate(periods, '2026-12-01')).toBeNull();
+  });
+
+  it('counts a bonus only in the paycheck it was planned into', () => {
+    const planned = { ...bonus, allocation: { kind: 'paycheck' as const, payday: '2026-10-24' } };
+    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], [planned]));
+    expect(summaries.map((s) => s.extraTotal)).toEqual([0, 0, 800]);
+    expect(summaries[2].leftForBuckets).toBe(2140 + 800 - 1190);
+    expect(summaries[2].status).toBe('covered');
+  });
+
+  it('ignores expected money that has not been planned yet', () => {
+    const summaries = periods.map((p) => summarizePeriod(p, SAMPLE_BILLS, [], [bonus]));
+    expect(summaries.every((s) => s.extraTotal === 0)).toBe(true);
+    expect(extraTotalForPayday([bonus], '2026-09-26')).toBe(0);
+  });
+
+  it('counts every decision tied to the paycheck except debt, in Home and Ahead alike', () => {
+    const events = [
+      { ...bonus, id: 's', status: 'received' as const, allocation: { kind: 'savings' as const, payday: '2026-09-26' } },
+      { ...bonus, id: 'd', status: 'received' as const, allocation: { kind: 'debt' as const, payday: '2026-09-26' } },
+      { ...bonus, id: 'p', allocation: { kind: 'paycheck' as const, payday: '2026-09-26' } },
+      { ...bonus, id: 'later', allocation: { kind: 'paycheck' as const, payday: '2026-10-10' } },
+    ];
+    expect(extraTotalForPayday(events, '2026-09-26')).toBe(1600);
+    expect(extraTotalForPayday(events, null)).toBe(0);
+    const first = summarizePeriod(periods[0], SAMPLE_BILLS, [], events);
+    expect(first.extraTotal).toBe(1600);
   });
 });
