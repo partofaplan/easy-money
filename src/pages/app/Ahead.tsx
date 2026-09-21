@@ -42,6 +42,7 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
               <span style={{ fontWeight: 700, fontSize: 15 }}>{fmtWeekday(s.period.payday)}</span>
               <span className="small muted">
                 {s.bills.length === 0 ? 'No bills due' : `${s.bills.map((b) => b.name).join(', ')} · ${fmt(s.billsTotal)} in bills`}
+                {s.extraTotal > 0 ? ` · +${fmt(s.extraTotal)} bonus` : ''}
               </span>
             </span>
             <span className={`status ${s.status}`}>{s.status === 'covered' ? 'Covered' : 'Tight'}</span>
@@ -66,6 +67,15 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
             </span>
           </div>
           <div className="stack" style={{ gap: 4, paddingTop: 8, borderTop: '1px solid var(--divider)' }}>
+            {s.extraIncome.map((e) => (
+              <div key={e.id} className="between" style={{ fontSize: 14, color: 'var(--accent)' }}>
+                <span>
+                  {e.source}
+                  {e.status === 'expected' ? `, expected ${fmtShort(e.date)}` : ''}
+                </span>
+                <span style={{ fontWeight: 700 }}>+ {fmt(e.amount)}</span>
+              </div>
+            ))}
             {s.bills.length === 0 && <span className="small muted">No bills due in this paycheck.</span>}
             {s.bills.map((b) => (
               <div key={b.id} className="between" style={{ fontSize: 14 }}>
@@ -96,7 +106,7 @@ export function AheadPanel({ summaries, compact }: { summaries: PeriodSummary[];
 
 export function Ahead() {
   const { data } = useStore();
-  const outlook = buildOutlook(data.answers, data.bills, data.reserves);
+  const outlook = buildOutlook(data.answers, data.bills, data.reserves, data.incomeEvents);
   const smoothing = suggestSmoothing(outlook);
   const count = outlook.length;
 

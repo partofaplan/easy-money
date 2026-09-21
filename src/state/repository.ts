@@ -13,13 +13,37 @@ export interface Repository {
 
 const KEY = 'easy-money.data';
 
+/** Bring older stored data up to the current shape. Returns null if it cannot. */
+export function migrate(raw: unknown): AppData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as { version?: number };
+  if (data.version === 2) return raw as AppData;
+  if (data.version === 1) {
+    type V1Event = { id: string; source: string; amount: number; receivedOn: string; allocation: { kind: string } | null };
+    const v1 = raw as Omit<AppData, 'version' | 'incomeEvents'> & { incomeEvents: V1Event[] };
+    const currentPayday = v1.answers?.nextPayday ?? '';
+    return {
+      ...v1,
+      version: 2,
+      incomeEvents: (v1.incomeEvents ?? []).map((e) => ({
+        id: e.id,
+        source: e.source,
+        amount: e.amount,
+        date: e.receivedOn,
+        status: 'received',
+        allocation: e.allocation?.kind === 'paycheck' ? { kind: 'paycheck', payday: currentPayday } : (e.allocation as AppData['incomeEvents'][number]['allocation']),
+      })),
+    };
+  }
+  return null;
+}
+
 export class LocalStorageRepository implements Repository {
   load(): AppData | null {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as AppData;
-      return parsed.version === 1 ? parsed : null;
+      return migrate(JSON.parse(raw));
     } catch {
       return null;
     }

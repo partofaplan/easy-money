@@ -92,6 +92,9 @@ export interface PeriodSummary {
   period: PayPeriod;
   bills: Bill[];
   billsTotal: number;
+  /** Bonuses and other extra money planned into this paycheck. */
+  extraIncome: IncomeEvent[];
+  extraTotal: number;
   /** Set aside for later paychecks (negative) or brought in from earlier ones (positive). */
   reserveNet: number;
   leftForBuckets: number;
@@ -101,21 +104,35 @@ export interface PeriodSummary {
 /** A paycheck is "tight" when less than this share of it is left after bills. */
 export const TIGHT_SHARE = 0.5;
 
-export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[]): PeriodSummary {
+/** Extra money the user has folded into the paycheck with this payday. */
+export function extraForPayday(events: IncomeEvent[], payday: string): IncomeEvent[] {
+  return events.filter((e) => e.allocation?.kind === 'paycheck' && e.allocation.payday === payday);
+}
+
+export function summarizePeriod(period: PayPeriod, bills: Bill[], reserves: Reserve[], events: IncomeEvent[] = []): PeriodSummary {
   const inPeriod = billsInPeriod(bills, period);
   const billsTotal = inPeriod.reduce((s, b) => s + b.amount, 0);
   const out = reserves.filter((r) => r.fromPayday === period.payday).reduce((s, r) => s + r.amount, 0);
   const inn = reserves.filter((r) => r.forPayday === period.payday).reduce((s, r) => s + r.amount, 0);
   const reserveNet = inn - out;
-  const leftForBuckets = period.takeHome - billsTotal + reserveNet;
+  const extraIncome = extraForPayday(events, period.payday);
+  const extraTotal = extraIncome.reduce((s, e) => s + e.amount, 0);
+  const leftForBuckets = period.takeHome + extraTotal - billsTotal + reserveNet;
   return {
     period,
     bills: inPeriod,
     billsTotal,
+    extraIncome,
+    extraTotal,
     reserveNet,
     leftForBuckets,
     status: leftForBuckets < period.takeHome * TIGHT_SHARE ? 'tight' : 'covered',
   };
+}
+
+/** The pay period (from `periods`) that a date falls in, or null if it is outside them. */
+export function periodForDate(periods: PayPeriod[], date: string): PayPeriod | null {
+  return periods.find((p) => date >= p.payday && date <= p.end) ?? null;
 }
 
 export interface Smoothing {
@@ -153,11 +170,11 @@ export function suggestSmoothing(summaries: PeriodSummary[]): Smoothing | null {
 }
 
 /** Everything the Ahead view needs, derived from answers and data. */
-export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[]): PeriodSummary[] {
+export function buildOutlook(answers: Answers, bills: Bill[], reserves: Reserve[], events: IncomeEvent[] = []): PeriodSummary[] {
   if (!answers.payFrequency || !answers.nextPayday) return [];
   const takeHome = answers.paycheckAmount ?? 0;
   const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday);
-  return payPeriods(answers.nextPayday, answers.payFrequency, takeHome, count).map((p) => summarizePeriod(p, bills, reserves));
+  return payPeriods(answers.nextPayday, answers.payFrequency, takeHome, count).map((p) => summarizePeriod(p, bills, reserves, events));
 }
 
 export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
@@ -168,9 +185,17 @@ export const FREQUENCY_LABEL: Record<PayFrequency, string> = {
   irregular: 'on a changing schedule',
 };
 
-/** Extra money the user chose to bring into the current paycheck's buckets. */
-export function extraAllocated(events: IncomeEvent[]): number {
+/**
+ * Extra money counted in the current paycheck: anything moved into buckets
+ * (savings, split) plus whatever was folded into this paycheck by payday.
+ */
+export function extraForCurrentPaycheck(events: IncomeEvent[], payday: string | null): number {
   return events
-    .filter((e) => e.allocation !== null && e.allocation.kind !== 'debt')
+    .filter((e) => {
+      if (!e.allocation) return false;
+      if (e.allocation.kind === 'debt') return false;
+      if (e.allocation.kind === 'paycheck') return e.allocation.payday === payday;
+      return true;
+    })
     .reduce((s, e) => s + e.amount, 0);
 }

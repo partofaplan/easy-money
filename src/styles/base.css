@@ -662,7 +662,11 @@ p {
   .shell {
     flex-direction: row;
   }
+  .shell-main {
+    min-width: 0;
+  }
   .shell-nav {
+    flex-shrink: 0;
     order: 0;
     position: sticky;
     top: 0;

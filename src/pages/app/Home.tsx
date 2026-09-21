@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { buildOutlook, extraAllocated, suggestSmoothing } from '../../domain/plan';
+import { buildOutlook, extraForCurrentPaycheck, suggestSmoothing } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -18,12 +18,12 @@ export function Home() {
   const [amount, setAmount] = useState<number | null>(null);
   const [bucketId, setBucketId] = useState(data.buckets[0]?.id ?? '');
 
-  const outlook = buildOutlook(data.answers, data.bills, data.reserves);
+  const outlook = buildOutlook(data.answers, data.bills, data.reserves, data.incomeEvents);
   const period = outlook[0]?.period;
   const takeHome = data.answers.paycheckAmount ?? 0;
   const planned = data.buckets.reduce((s, b) => s + b.planned, 0);
   const spent = data.buckets.reduce((s, b) => s + b.spent, 0);
-  const extra = extraAllocated(data.incomeEvents);
+  const extra = extraForCurrentPaycheck(data.incomeEvents, period?.payday ?? null);
   const available = takeHome + extra;
   const left = available - planned;
   const smoothing = suggestSmoothing(outlook);

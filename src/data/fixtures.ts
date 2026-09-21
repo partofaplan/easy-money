@@ -32,13 +32,24 @@ export const SAMPLE_BONUS: IncomeEvent = {
   id: 'bonus-acme',
   source: 'Acme Co',
   amount: 1200,
-  receivedOn: '2026-09-30',
+  date: '2026-09-30',
+  status: 'received',
+  allocation: null,
+};
+
+/** A bonus the user knows is coming, not yet planned into a paycheck. */
+export const SAMPLE_EXPECTED_BONUS: IncomeEvent = {
+  id: 'bonus-q3',
+  source: 'Acme Co, quarterly bonus',
+  amount: 800,
+  date: '2026-10-15',
+  status: 'expected',
   allocation: null,
 };
 
 /** The fully set-up budget shown to people who skip the walkthrough. */
 export const DEMO_DATA: AppData = {
-  version: 1,
+  version: 2,
   setupComplete: true,
   answers: {
     payFrequency: 'biweekly',
@@ -58,7 +69,7 @@ export const DEMO_DATA: AppData = {
     { id: 'other', name: 'Everything else', planned: 130, spent: 12, kind: 'spending' },
   ],
   bills: SAMPLE_BILLS,
-  incomeEvents: [SAMPLE_BONUS],
+  incomeEvents: [SAMPLE_BONUS, SAMPLE_EXPECTED_BONUS],
   reserves: [],
 };
 
