@@ -72,7 +72,9 @@ function AuthGate() {
 const localProfiles = new ProfileRegistry();
 
 function ProfilesForAccount({ user }: { user: AuthUser | null }) {
-  const store = useMemo(() => (user ? new FirestoreProfileStore(user.uid, user.email) : localProfiles), [user]);
+  const uid = user?.uid ?? null;
+  const email = user?.email ?? '';
+  const store = useMemo(() => (uid ? new FirestoreProfileStore(uid, email) : localProfiles), [uid, email]);
   return (
     <ProfileProvider key={user?.uid ?? 'local'} store={store}>
       <BudgetForProfile user={user} />

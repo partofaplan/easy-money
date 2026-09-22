@@ -78,7 +78,7 @@ export function Settings() {
           <Link to="/profiles" className="list-row between">
             <span className="stack" style={{ gap: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>Switch profile</span>
-              <span className="small muted">{profiles.length === 1 ? 'Only you so far.' : `${profiles.length} profiles on this device.`}</span>
+              <span className="small muted">{profiles.length === 1 ? 'Only one so far.' : `${profiles.length} profiles${auth.status === 'signedIn' ? ' in your account' : ' on this device'}.`}</span>
             </span>
             <span className="muted">
               <Icon name="chevronRight" />
@@ -174,14 +174,14 @@ export function Settings() {
           className="list-row between"
           style={{ background: 'none', border: 0, cursor: 'pointer', width: '100%', borderTop: '1px solid var(--divider)' }}
           onClick={() => {
-            if (active && window.confirm(`Delete the profile "${active.name}" and its budget? This cannot be undone.`)) {
+            if (active && window.confirm(`Delete the profile "${active.name}" and its budget${auth.status === 'signedIn' ? ' from your account' : ''}? This cannot be undone.`)) {
               remove(active.id);
               navigate('/profiles');
             }
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--clay)' }}>Delete this profile</span>
-          <span className="small muted">Removes it from this device</span>
+          <span className="small muted">{auth.status === 'signedIn' ? 'Removes it and its budget from your account' : 'Removes it from this device'}</span>
         </button>
       </div>
 

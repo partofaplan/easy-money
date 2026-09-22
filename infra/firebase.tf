@@ -38,13 +38,21 @@ data "google_firebase_web_app_config" "app" {
   web_app_id = google_firebase_web_app.app.app_id
 }
 
+# People's budgets live here: protected from deletion, with point-in-time
+# recovery as the undo for accidental overwrites. Terraform leaves it in place on destroy.
 resource "google_firestore_database" "default" {
-  project         = var.project_id
-  name            = "(default)"
-  location_id     = var.region
-  type            = "FIRESTORE_NATIVE"
-  deletion_policy = "DELETE"
-  depends_on      = [google_firebase_project.default]
+  project                           = var.project_id
+  name                              = "(default)"
+  location_id                       = var.region
+  type                              = "FIRESTORE_NATIVE"
+  delete_protection_state           = "DELETE_PROTECTION_ENABLED"
+  point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_ENABLED"
+  deletion_policy                   = "ABANDON"
+  depends_on                        = [google_firebase_project.default]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Email + password sign-in. The Cloud Run host must be authorised for the

@@ -69,6 +69,12 @@ Without the `VITE_FIREBASE_*` variables (for example `npm run dev` with no `.env
 runs in **local mode**: no sign-in, device profiles in localStorage. Copy the values from
 `terraform output firebase_web_config` into `.env.local` to run against the real project.
 
+Two Identity Platform settings are not managed by Terraform and are worth setting in the
+Firebase console (Authentication → Settings): a password policy of 8+ characters (the app
+enforces 8 on sign-up; the server default is 6) and **email enumeration protection**. The
+Firestore database has delete protection and point-in-time recovery on; Terraform will not
+destroy it.
+
 Password-reset emails are sent by Firebase from its default sender; a custom domain and
 templates can be set in the Firebase console later.
 

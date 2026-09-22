@@ -5,6 +5,7 @@ import { defaultTakeHome, fillFromPlan, nextPayday, planFor, rescaleBuckets, sug
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
 import { newId } from '../lib/money';
 import type { Repository } from './repository';
+import { registerFlush } from './pendingSaves';
 
 export const initialData: AppData = {
   version: 4,
@@ -187,61 +188,152 @@ interface StoreProviderProps {
   fallback?: ReactNode;
 }
 
+const SAVE_DELAY_MS = 400;
+
 export function StoreProvider({ children, repository, fallback = null }: StoreProviderProps) {
   const [data, dispatch] = useReducer(reducer, initialData);
-  const [hydrated, setHydrated] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // What still needs writing. `dirty` is false right after a load and after a reset.
+  const latest = useRef(data);
+  const dirty = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  latest.current = data;
+
+  const flush = useMemo(
+    () => async () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      if (!dirty.current) return;
+      dirty.current = false;
+      try {
+        await repository.save(latest.current);
+        setSaveError(null);
+      } catch (err) {
+        dirty.current = true;
+        console.error('Saving the budget failed', err);
+        setSaveError('Your last change could not be saved. Check your connection; we will keep trying.');
+        throw err;
+      }
+    },
+    [repository],
+  );
 
   // Load once per repository (each profile gets its own provider instance).
   useEffect(() => {
     let cancelled = false;
-    repository.load().then((loaded) => {
-      if (cancelled) return;
-      dispatch({ type: 'hydrate', data: loaded ?? initialData });
-      setHydrated(true);
-    });
+    setPhase('loading');
+    repository
+      .load()
+      .then((loaded) => {
+        if (cancelled) return;
+        dispatch({ type: 'hydrate', data: loaded ?? initialData });
+        dirty.current = false;
+        setPhase('ready');
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.error('Loading the budget failed', err);
+        setLoadError(err instanceof Error ? err.message : 'Could not load your budget.');
+        setPhase('failed');
+      });
     return () => {
       cancelled = true;
     };
-  }, [repository]);
+  }, [repository, attempt]);
 
-  // Save shortly after each change, once loaded, so a burst of edits is one write.
+  // Save shortly after each change so a burst of edits is one write.
   useEffect(() => {
-    if (!hydrated) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void repository.save(data);
-    }, 400);
+    if (phase !== 'ready' || !dirty.current) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      void flush().catch(() => undefined);
+    }, SAVE_DELAY_MS);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (timer.current) clearTimeout(timer.current);
     };
-  }, [data, hydrated, repository]);
+  }, [data, phase, flush]);
+
+  // Anything still pending is written when the page is left, on sign-out or
+  // profile switch (via the registry), and when this provider unmounts.
+  useEffect(() => {
+    const unregister = registerFlush(flush);
+    const onHide = () => {
+      void flush().catch(() => undefined);
+    };
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      unregister();
+      window.removeEventListener('pagehide', onHide);
+      void flush().catch(() => undefined);
+    };
+  }, [flush]);
+
+  // Every action except hydrate/reset marks the budget dirty.
+  const act = useMemo(
+    () => (action: Action) => {
+      dirty.current = true;
+      dispatch(action);
+    },
+    [],
+  );
 
   const store = useMemo<Store>(
     () => ({
       data,
-      answer: (patch) => dispatch({ type: 'answer', patch }),
-      setBuckets: (buckets) => dispatch({ type: 'setBuckets', buckets }),
-      completeSetup: () => dispatch({ type: 'completeSetup' }),
-      loadDemo: () => dispatch({ type: 'loadDemo' }),
-      addPurchase: (bucketId, amount) => dispatch({ type: 'addPurchase', bucketId, amount }),
-      markBucketPaid: (bucketId, dueOn) => dispatch({ type: 'markBucketPaid', bucketId, dueOn }),
-      addIncome: (event) => dispatch({ type: 'addIncome', event }),
-      allocateIncome: (eventId, allocation) => dispatch({ type: 'allocateIncome', eventId, allocation }),
-      markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
-      setPlan: (plan) => dispatch({ type: 'setPlan', plan }),
-      planAnother: () => dispatch({ type: 'planAnother' }),
-      confirmPaycheck: (payday, amount, hours) => dispatch({ type: 'confirmPaycheck', payday, amount, hours }),
+      answer: (patch) => act({ type: 'answer', patch }),
+      setBuckets: (buckets) => act({ type: 'setBuckets', buckets }),
+      completeSetup: () => act({ type: 'completeSetup' }),
+      loadDemo: () => act({ type: 'loadDemo' }),
+      addPurchase: (bucketId, amount) => act({ type: 'addPurchase', bucketId, amount }),
+      markBucketPaid: (bucketId, dueOn) => act({ type: 'markBucketPaid', bucketId, dueOn }),
+      addIncome: (event) => act({ type: 'addIncome', event }),
+      allocateIncome: (eventId, allocation) => act({ type: 'allocateIncome', eventId, allocation }),
+      markReceived: (eventId) => act({ type: 'markReceived', eventId }),
+      setPlan: (plan) => act({ type: 'setPlan', plan }),
+      planAnother: () => act({ type: 'planAnother' }),
+      confirmPaycheck: (payday, amount, hours) => act({ type: 'confirmPaycheck', payday, amount, hours }),
       reset: () => {
-        void repository.clear();
+        // Nothing pending should be written after the clear.
+        if (timer.current) clearTimeout(timer.current);
+        dirty.current = false;
         dispatch({ type: 'reset' });
+        void repository.clear().catch((err: unknown) => console.error('Clearing the budget failed', err));
       },
     }),
-    [data, repository],
+    [data, act, repository],
   );
 
-  if (!hydrated) return <>{fallback}</>;
-  return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
+  if (phase === 'loading') return <>{fallback}</>;
+  if (phase === 'failed') {
+    return (
+      <div className="welcome">
+        <div className="welcome-copy stack" style={{ justifyContent: 'center', gap: 12 }}>
+          <h1 style={{ fontSize: 26 }}>Couldn&rsquo;t open this budget.</h1>
+          <p className="muted">{loadError}</p>
+          <p className="small muted">Nothing has been changed. Check your connection and try again.</p>
+          <button type="button" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={() => setAttempt((n) => n + 1)}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <StoreContext.Provider value={store}>
+      {saveError && (
+        <div role="alert" className="card warn small" style={{ borderRadius: 0, textAlign: 'center' }}>
+          {saveError}
+        </div>
+      )}
+      {children}
+    </StoreContext.Provider>
+  );
 }
 
 export function useStore(): Store {

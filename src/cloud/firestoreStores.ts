@@ -8,7 +8,7 @@
  */
 import { deleteDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import type { AppData } from '../domain/types';
-import { migrate, type Repository } from '../state/repository';
+import { parseStored, type Repository } from '../state/repository';
 import { emptyIndex, type ProfileIndex, type ProfileStore } from '../state/profiles';
 import { firestore } from './firebase';
 
@@ -31,7 +31,7 @@ export class FirestoreRepository implements Repository {
     const snap = await getDoc(this.ref());
     if (!snap.exists()) return null;
     const { updatedAt: _ignored, ...data } = snap.data();
-    return migrate(data);
+    return parseStored(data);
   }
 
   async save(data: AppData): Promise<void> {

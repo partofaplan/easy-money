@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
+import { flushPendingSaves } from '../state/pendingSaves';
 import { cloudEnabled, firebaseAuth } from './firebase';
 
 export interface AuthUser {
@@ -52,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(firebaseAuth(), email.trim());
   }, []);
   const signOut = useCallback(async () => {
+    // Pending budget writes must land while the token is still valid.
+    await flushPendingSaves();
     await firebaseSignOut(firebaseAuth());
   }, []);
 
@@ -78,7 +81,9 @@ export function describeAuthError(err: unknown): string {
     case 'auth/email-already-in-use':
       return 'There’s already an account for that email. Sign in instead.';
     case 'auth/weak-password':
-      return 'Use a password of at least 6 characters.';
+      return 'Use a password of at least 8 characters.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled.';
     case 'auth/too-many-requests':
       return 'Too many tries. Wait a moment and try again.';
     case 'auth/network-request-failed':

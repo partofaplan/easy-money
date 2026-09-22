@@ -73,12 +73,12 @@ export function SignInPage() {
                   type="password"
                   autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
                   required
-                  minLength={6}
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {mode === 'signUp' && <span className="small muted">At least 6 characters.</span>}
+              {mode === 'signUp' && <span className="small muted">At least 8 characters.</span>}
             </div>
           )}
           {error && (
@@ -91,7 +91,7 @@ export function SignInPage() {
               {notice}
             </span>
           )}
-          <button type="submit" className="btn btn-primary" disabled={busy || !email.trim() || (mode !== 'reset' && password.length < 6)}>
+          <button type="submit" className="btn btn-primary" disabled={busy || !email.trim() || (mode !== 'reset' && password.length < (mode === 'signUp' ? 8 : 6))}>
             {busy ? 'One moment…' : mode === 'signIn' ? 'Sign in' : mode === 'signUp' ? 'Create account' : 'Send reset link'}
           </button>
         </form>

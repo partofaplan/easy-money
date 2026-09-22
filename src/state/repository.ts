@@ -74,18 +74,26 @@ function v3ToV4(v3: V3Data): AppData {
   };
 }
 
+/** Migrates stored data, refusing (rather than discarding) anything unrecognised. */
+export function parseStored(raw: unknown): AppData {
+  const data = migrate(raw);
+  if (!data) throw new Error('This budget was saved by a newer version of the app. Update the app to open it.');
+  return data;
+}
+
 export class LocalStorageRepository implements Repository {
   /** @param key the storage key this profile's budget lives under */
   constructor(private readonly key: string) {}
 
   async load(): Promise<AppData | null> {
+    let raw: string | null = null;
     try {
-      const raw = localStorage.getItem(this.key);
-      if (!raw) return null;
-      return migrate(JSON.parse(raw));
+      raw = localStorage.getItem(this.key);
     } catch {
-      return null;
+      return null; // storage unavailable: start in memory
     }
+    if (!raw) return null;
+    return parseStored(JSON.parse(raw));
   }
   async save(data: AppData): Promise<void> {
     try {
