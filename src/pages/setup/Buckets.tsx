@@ -1,22 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { OptionCard } from '../../components/OptionCard';
 import { SetupFrame } from '../../components/SetupFrame';
-import { starterBucketNames, useStore } from '../../state/store';
+import { LIFESTYLE_QUESTIONS } from '../../data/lifestyle';
+import { useStore } from '../../state/store';
+
+/** A taste of what the guided questions ask, shown before the user commits to them. */
+const SAMPLE_QUESTIONS = ['Do you drive?', 'Do you buy the groceries?', 'Any pets or kids at home?', 'Paying down debt?'];
 
 export function Buckets() {
-  const { data, answer, setBuckets } = useStore();
+  const { data, answer } = useStore();
   const navigate = useNavigate();
   const choice = data.answers.bucketChoice;
-
-  const next = () => {
-    if (choice === 'custom') {
-      navigate('/setup/buckets/customize');
-    } else {
-      // Amounts are worked out from the paycheck on the summary screen.
-      setBuckets([]);
-      navigate('/setup/ready');
-    }
-  };
 
   return (
     <SetupFrame
@@ -25,9 +19,14 @@ export function Buckets() {
       eyebrow="Question 4"
       title="Want to pick your own spending buckets, or should I choose for you?"
       lead="Buckets are where each dollar of a paycheck goes. Most first-timers do best with a small set."
-      why="Too many categories is the most common reason a first budget gets abandoned. Seven is enough to see where money goes without turning every coffee into a decision."
+      why="Too many categories is the most common reason a first budget gets abandoned. Naming only what you actually spend on keeps the list short enough to remember."
       actions={
-        <button type="button" className="btn btn-primary" disabled={choice === null} onClick={next}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={choice === null}
+          onClick={() => navigate(choice === 'custom' ? '/setup/buckets/customize' : '/setup/buckets/lifestyle')}
+        >
           Continue
         </button>
       }
@@ -37,7 +36,7 @@ export function Buckets() {
         onSelect={() => answer({ bucketChoice: 'auto' })}
         title="Choose for me"
         badge="Recommended"
-        sub="A simple starter set. Rename, add or remove buckets anytime."
+        sub={`${LIFESTYLE_QUESTIONS.length} quick questions about how you live, then I build the buckets to match.`}
       />
       <OptionCard
         selected={choice === 'custom'}
@@ -46,15 +45,17 @@ export function Buckets() {
         sub="Start from the starter set or from scratch."
       />
       <div className="card stack" style={{ marginTop: 10, gap: 12 }}>
-        <span className="eyebrow">Your starter buckets</span>
+        <span className="eyebrow">What I&rsquo;ll ask</span>
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          {starterBucketNames.map((n) => (
-            <span key={n} className="chip">
-              {n}
+          {SAMPLE_QUESTIONS.map((q) => (
+            <span key={q} className="chip">
+              {q}
             </span>
           ))}
         </div>
-        <span className="small muted">Seven buckets. We&rsquo;ll suggest an amount for each based on your paycheck.</span>
+        <span className="small muted">
+          Driving gets you a Gas bucket, groceries get their own, and anything you say no to never shows up. You can rename or drop any of them at the end.
+        </span>
       </div>
     </SetupFrame>
   );

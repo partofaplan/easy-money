@@ -8,13 +8,22 @@ interface Props {
   sub?: string;
   badge?: string;
   icon?: IconName;
+  /** One of several answers that can be picked together: shows a checkbox, not a radio. */
+  multi?: boolean;
   children?: ReactNode;
 }
 
 /** One answer in a single-choice question. A real button, so it is keyboard and screen-reader friendly. */
-export function OptionCard({ selected, onSelect, title, sub, badge, icon, children }: Props) {
+export function OptionCard({ selected, onSelect, title, sub, badge, icon, multi, children }: Props) {
   return (
-    <button type="button" className="option" aria-pressed={selected} onClick={onSelect}>
+    <button
+      type="button"
+      className="option"
+      role={multi ? 'checkbox' : undefined}
+      aria-checked={multi ? selected : undefined}
+      aria-pressed={multi ? undefined : selected}
+      onClick={onSelect}
+    >
       {icon && (
         <span className="iconbox">
           <Icon name={icon} />
@@ -28,7 +37,7 @@ export function OptionCard({ selected, onSelect, title, sub, badge, icon, childr
         {sub && <span className="sub">{sub}</span>}
         {children}
       </span>
-      <span className={`radio ${selected ? 'on' : ''}`}>{selected && <Icon name="check" size={14} strokeWidth={3.5} />}</span>
+      <span className={`radio ${multi ? 'box' : ''} ${selected ? 'on' : ''}`}>{selected && <Icon name="check" size={14} strokeWidth={3.5} />}</span>
     </button>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_DATA } from '../data/fixtures';
+import { bucketsFromLifestyle } from '../domain/lifestyle';
 import { reducer } from './store';
 
 const demo = () => structuredClone(DEMO_DATA);
@@ -11,6 +12,14 @@ describe('reducer: extra money', () => {
     expect(savings.planned).toBe(300 + 1200);
     expect(savings.spent).toBe(300 + 1200);
     expect(state.incomeEvents.find((e) => e.id === 'bonus-acme')?.allocation).toEqual({ kind: 'savings', payday: '2026-09-26' });
+  });
+
+  it('sends a bonus to the emergency fund when the interview made several savings envelopes', () => {
+    const buckets = bucketsFromLifestyle({ home: ['rent'], goals: ['travel', 'goal', 'emergency'] });
+    expect(buckets.filter((b) => b.kind === 'savings').length).toBeGreaterThan(1);
+    const state = reducer({ ...demo(), buckets }, { type: 'allocateIncome', eventId: 'bonus-acme', allocation: { kind: 'savings', payday: '2026-09-26' } });
+    const funded = state.buckets.filter((b) => b.planned !== buckets.find((x) => x.id === b.id)?.planned);
+    expect(funded.map((b) => b.name)).toEqual(['Emergency fund']);
   });
 
   it('only lets expected money be planned into a paycheck', () => {

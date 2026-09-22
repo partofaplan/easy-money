@@ -277,7 +277,8 @@ p {
   cursor: pointer;
   color: var(--ink);
 }
-.option[aria-pressed='true'] {
+.option[aria-pressed='true'],
+.option[aria-checked='true'] {
   background: var(--tint);
   border: 2px solid var(--accent);
   padding: 13.5px 17.5px;
@@ -296,6 +297,10 @@ p {
   border-radius: 50%;
   border: 2px solid var(--ring);
   flex-shrink: 0;
+}
+/* A question that takes several answers uses a checkbox instead. */
+.radio.box {
+  border-radius: 8px;
 }
 .radio.on {
   border: 0;
