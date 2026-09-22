@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flushPendingSaves } from './pendingSaves';
-import { activate, activeProfile, addProfile, emptyIndex, removeProfile, renameProfile, type Profile, type ProfileIndex, type ProfileStore } from './profiles';
+import { activate, activeProfile, addProfile, emptyIndex, removeProfile, renameProfile, setProfileTheme, type Profile, type ProfileIndex, type ProfileStore } from './profiles';
 
 interface ProfilesCtx {
   /** False until the profile list has loaded. */
@@ -13,6 +13,7 @@ interface ProfilesCtx {
   create: (name: string) => Profile;
   switchTo: (id: string) => void;
   rename: (id: string, name: string) => void;
+  setTheme: (id: string, theme: Profile['theme']) => void;
   remove: (id: string) => void;
 }
 
@@ -66,6 +67,7 @@ export function ProfileProvider({ children, store }: { children: ReactNode; stor
   }, []);
   const switchTo = useCallback((id: string) => setIndex((prev) => activate(prev, id)), []);
   const rename = useCallback((id: string, name: string) => setIndex((prev) => renameProfile(prev, id, name)), []);
+  const setTheme = useCallback((id: string, theme: Profile['theme']) => setIndex((prev) => setProfileTheme(prev, id, theme)), []);
   const remove = useCallback(
     (id: string) => {
       // Write anything pending first so the unmounting budget cannot recreate the deleted document.
@@ -79,8 +81,8 @@ export function ProfileProvider({ children, store }: { children: ReactNode; stor
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const value = useMemo<ProfilesCtx>(
-    () => ({ ready, error, retry, profiles: index.profiles, active: activeProfile(index), create, switchTo, rename, remove }),
-    [ready, error, retry, index, create, switchTo, rename, remove],
+    () => ({ ready, error, retry, profiles: index.profiles, active: activeProfile(index), create, switchTo, rename, setTheme, remove }),
+    [ready, error, retry, index, create, switchTo, rename, setTheme, remove],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

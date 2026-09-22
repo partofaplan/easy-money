@@ -53,14 +53,34 @@ export class FirestoreProfileStore implements ProfileStore {
     return doc(firestore(), 'users', this.uid);
   }
 
+  /** Which profile is open is remembered per device, so two phones on one account stay independent. */
+  private get openKey() {
+    return `easy-money.open.${this.uid}`;
+  }
+
   async load(): Promise<ProfileIndex> {
     const snap = await getDoc(this.ref());
     if (!snap.exists()) return emptyIndex;
     const d = snap.data();
-    return { profiles: Array.isArray(d.profiles) ? d.profiles : [], activeId: d.activeId ?? null };
+    const profiles: ProfileIndex['profiles'] = Array.isArray(d.profiles) ? d.profiles : [];
+    let activeId: string | null = null;
+    try {
+      activeId = localStorage.getItem(this.openKey);
+    } catch {
+      // ignore
+    }
+    if (!profiles.some((p) => p.id === activeId)) activeId = profiles.length === 1 ? profiles[0].id : null;
+    return { profiles, activeId };
   }
 
   async save(index: ProfileIndex): Promise<void> {
+    try {
+      if (index.activeId) localStorage.setItem(this.openKey, index.activeId);
+      else localStorage.removeItem(this.openKey);
+    } catch {
+      // ignore
+    }
+    // The account keeps the list; `activeId` is stored only as "last used".
     await setDoc(this.ref(), { ...plain(index), email: this.email, updatedAt: serverTimestamp() });
   }
 

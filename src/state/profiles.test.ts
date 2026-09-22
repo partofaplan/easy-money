@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activate, activeProfile, addProfile, emptyIndex, ProfileRegistry, removeProfile, renameProfile, PROFILES_KEY } from './profiles';
+import { activate, activeProfile, addProfile, emptyIndex, ProfileRegistry, removeProfile, renameProfile, setProfileTheme, PROFILES_KEY } from './profiles';
 
 class MemoryStorage {
   map = new Map<string, string>();
@@ -32,6 +32,12 @@ describe('profile index', () => {
     // Deleting another profile keeps the open one.
     expect(removeProfile(switched, b.profile.id).activeId).toBe(a.profile.id);
     expect(removeProfile(removed, b.profile.id)).toEqual(emptyIndex);
+  });
+
+  it('keeps the appearance choice on the profile', () => {
+    const { index, profile } = addProfile(emptyIndex, 'Zach');
+    expect(activeProfile(setProfileTheme(index, profile.id, 'dark'))?.theme).toBe('dark');
+    expect(activeProfile(setProfileTheme(index, 'nope', 'dark'))?.theme).toBeUndefined();
   });
 
   it('falls back to a name when blank', () => {

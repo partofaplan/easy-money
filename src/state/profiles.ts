@@ -10,6 +10,8 @@ export interface Profile {
   name: string;
   /** ISO timestamp */
   createdAt: string;
+  /** Appearance choice; travels with the profile (and so with the account). */
+  theme?: 'system' | 'light' | 'dark';
 }
 
 export interface ProfileIndex {
@@ -35,6 +37,10 @@ export function renameProfile(index: ProfileIndex, id: string, name: string): Pr
   const trimmed = name.trim();
   if (!trimmed) return index;
   return { ...index, profiles: index.profiles.map((p) => (p.id === id ? { ...p, name: trimmed } : p)) };
+}
+
+export function setProfileTheme(index: ProfileIndex, id: string, theme: Profile['theme']): ProfileIndex {
+  return { ...index, profiles: index.profiles.map((p) => (p.id === id ? { ...p, theme } : p)) };
 }
 
 export function activate(index: ProfileIndex, id: string): ProfileIndex {

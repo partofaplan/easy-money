@@ -34,7 +34,7 @@ export function Settings() {
       <div className="page-head stack" style={{ gap: 6 }}>
         <h1>Settings</h1>
         <p className="muted" style={{ fontSize: 15 }}>
-          Everything here belongs to {active?.name ?? 'this profile'}. Other profiles on this device keep their own.
+          Everything here belongs to {active?.name ?? 'this profile'}. Other profiles {auth.status === 'signedIn' ? 'in your account' : 'on this device'} keep their own.
         </p>
       </div>
 

@@ -14,9 +14,19 @@ export function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setError(null);
+    setNotice(null);
+  };
+
   const submit = async () => {
     setError(null);
     setNotice(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('That doesn\u2019t look like an email address.');
+      return;
+    }
     setBusy(true);
     try {
       if (mode === 'signIn') await signIn(email, password);
@@ -33,7 +43,7 @@ export function SignInPage() {
     }
   };
 
-  const title = mode === 'signIn' ? 'Welcome back.' : mode === 'signUp' ? 'Create your account.' : 'Reset your password.';
+  const title = mode === 'signIn' ? 'Sign in to your budget.' : mode === 'signUp' ? 'Create your account.' : 'Reset your password.';
   const lead =
     mode === 'signIn'
       ? 'Sign in with your email to open your budget on any device.'
@@ -99,16 +109,16 @@ export function SignInPage() {
         <div className="stack" style={{ marginTop: 16, gap: 8, alignItems: 'center' }}>
           {mode === 'signIn' && (
             <>
-              <button type="button" className="link" onClick={() => setMode('signUp')}>
+              <button type="button" className="link" onClick={() => switchMode('signUp')}>
                 New here? Create an account
               </button>
-              <button type="button" className="link small" onClick={() => setMode('reset')}>
+              <button type="button" className="link small" onClick={() => switchMode('reset')}>
                 Forgot your password?
               </button>
             </>
           )}
           {mode !== 'signIn' && (
-            <button type="button" className="link" onClick={() => setMode('signIn')}>
+            <button type="button" className="link" onClick={() => switchMode('signIn')}>
               Back to sign in
             </button>
           )}
