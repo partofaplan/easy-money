@@ -71,10 +71,24 @@ export function Estimate() {
                 <MoneyInput id="gross" value={gross} onChange={setGross} placeholder={unit === 'year' ? '76,000' : '22'} />
               </div>
               <div className="seg" role="group" aria-label="Pay unit">
-                <button type="button" aria-pressed={unit === 'year'} onClick={() => setUnit('year')}>
+                <button
+                  type="button"
+                  aria-pressed={unit === 'year'}
+                  onClick={() => {
+                    if (unit !== 'year') setGross(null);
+                    setUnit('year');
+                  }}
+                >
                   Per year
                 </button>
-                <button type="button" aria-pressed={unit === 'hour'} onClick={() => setUnit('hour')}>
+                <button
+                  type="button"
+                  aria-pressed={unit === 'hour'}
+                  onClick={() => {
+                    if (unit !== 'hour') setGross(null);
+                    setUnit('hour');
+                  }}
+                >
                   Per hour
                 </button>
               </div>
@@ -207,17 +221,19 @@ export function Estimate() {
                 >
                   {unit === 'hour' ? `Use ${fmt(rounded)} for ${hours} hours` : `Use ${fmt(rounded)} in my budget`}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => {
-                    // Keep the tax details even when the number itself is not used.
-                    answer({ tax: taxSettings });
-                    navigate(done);
-                  }}
-                >
-                  Keep my own number
-                </button>
+                {unit !== 'hour' && (
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => {
+                      // Keep the tax details even when the number itself is not used.
+                      answer({ tax: taxSettings });
+                      navigate(done);
+                    }}
+                  >
+                    Keep my own number
+                  </button>
+                )}
               </div>
             </>
           ) : (

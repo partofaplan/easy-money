@@ -30,7 +30,7 @@ export type Action =
   | { type: 'markReceived'; eventId: string }
   | { type: 'setPlan'; plan: PaycheckPlan }
   | { type: 'planAnother' }
-  | { type: 'confirmPaycheck'; payday: string; amount: number }
+  | { type: 'confirmPaycheck'; payday: string; amount: number; hours?: number }
   | { type: 'reset' };
 
 export function reducer(state: AppData, action: Action): AppData {
@@ -127,7 +127,7 @@ export function reducer(state: AppData, action: Action): AppData {
       const { payFrequency, nextPayday: current } = state.answers;
       if (!payFrequency || !current) return state;
       const plan = planFor(action.payday, state.plans, state.buckets, state.answers);
-      const deposit = { payday: action.payday, amount: action.amount };
+      const deposit = { payday: action.payday, amount: action.amount, ...(action.hours ? { hours: action.hours } : {}) };
       // Once a paycheck is confirmed its buckets are the truth; the stored plan is dropped.
       const remaining = state.plans.filter((p) => p.payday > action.payday);
       if (action.payday === current) {
@@ -170,7 +170,7 @@ interface Store {
   setPlan: (plan: PaycheckPlan) => void;
   planAnother: () => void;
   /** Confirm a paycheck landed with `amount`, filling buckets from its plan. */
-  confirmPaycheck: (payday: string, amount: number) => void;
+  confirmPaycheck: (payday: string, amount: number, hours?: number) => void;
   reset: () => void;
 }
 
@@ -197,7 +197,7 @@ export function StoreProvider({ children, repository }: { children: ReactNode; r
       markReceived: (eventId) => dispatch({ type: 'markReceived', eventId }),
       setPlan: (plan) => dispatch({ type: 'setPlan', plan }),
       planAnother: () => dispatch({ type: 'planAnother' }),
-      confirmPaycheck: (payday, amount) => dispatch({ type: 'confirmPaycheck', payday, amount }),
+      confirmPaycheck: (payday, amount, hours) => dispatch({ type: 'confirmPaycheck', payday, amount, hours }),
       reset: () => {
         repository.clear();
         dispatch({ type: 'reset' });

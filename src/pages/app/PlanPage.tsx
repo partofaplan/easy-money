@@ -82,7 +82,10 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
           <div className="input" style={{ background: 'var(--tint)', borderColor: 'transparent' }}>
             <span className="unit">$</span>
             <span style={{ fontWeight: 700 }}>{(confirmedAmount ?? plan.takeHome).toLocaleString('en-US')}</span>
-            <span className="small muted">{confirmedAmount !== null ? 'landed' : 'estimated'}{extra > 0 ? `, +${fmt(extra)} extra` : ''}</span>
+            <span className="small muted">
+              {confirmedAmount !== null ? (data.deposit?.hours ? `landed for ${data.deposit.hours} hours` : 'landed') : 'estimated'}
+              {extra > 0 ? `, +${fmt(extra)} extra` : ''}
+            </span>
           </div>
         ) : (
           <MoneyInput id={`take-${plan.payday}`} value={plan.takeHome} onChange={(v) => setPlan({ ...plan, takeHome: v ?? 0 })} />

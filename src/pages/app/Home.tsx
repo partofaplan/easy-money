@@ -162,7 +162,7 @@ export function Home() {
                   !early ||
                   window.confirm(`${fmtWeekday(toConfirm)} is ${daysBetween(now, toConfirm)} days away. Confirm anyway? This starts a new paycheck and resets this one's spending.`)
                 ) {
-                  confirmPaycheck(toConfirm, landed);
+                  confirmPaycheck(toConfirm, landed, hourly && hoursWorked ? hoursWorked : undefined);
                   setConfirming(null);
                 }
               }}
@@ -220,7 +220,10 @@ export function Home() {
       <div className="hero" style={{ marginTop: 20 }}>
         <div className="between" style={{ alignItems: 'flex-start' }}>
           <span className="stack" style={{ gap: 6 }}>
-            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}</span>
+            <span className="eyebrow">
+              {extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}
+              {confirmed && data.deposit?.hours ? ` · ${data.deposit.hours} hours` : ''}
+            </span>
             <span className="display amount">{fmt(available)}</span>
             {extra > 0 && (
               <span style={{ fontSize: 14, opacity: 0.9 }}>

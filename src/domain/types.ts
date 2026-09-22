@@ -105,6 +105,8 @@ export interface PaycheckPlan {
 export interface Deposit {
   payday: string;
   amount: number;
+  /** Hours worked, when pay is hourly. */
+  hours?: number;
 }
 
 export interface PayPeriod {
