@@ -4,7 +4,7 @@ import { MoneyInput } from '../../components/MoneyInput';
 import { SetupFrame } from '../../components/SetupFrame';
 import { defaultTakeHome, FREQUENCY_LABEL, horizonCount, isHourly } from '../../domain/plan';
 import { STATE_TAXES } from '../../data/taxTables';
-import { fmtWeekday } from '../../lib/dates';
+import { fmtWeekday, ordinalDay } from '../../lib/dates';
 import { fmt } from '../../lib/money';
 import { starterBucketNames, useStore } from '../../state/store';
 
@@ -20,7 +20,9 @@ export function Ready() {
     ? `${stateName ? `${stateName}, ` : 'federal taxes only, '}${a.tax.filing === 'single' ? 'single' : a.tax.filing === 'married' ? 'married filing jointly' : 'head of household'}${a.tax.retirementPct || a.tax.healthPerPaycheck ? ', with your deductions' : ''}`
     : 'federal taxes only';
 
-  const freqLabel = a.payFrequency ? FREQUENCY_LABEL[a.payFrequency] : 'not set';
+  const semi = a.semimonthlyDays ?? [1, 15];
+  const dayName = (d: number) => (d === 31 ? 'the last day' : `the ${ordinalDay(d)}`);
+  const freqLabel = a.payFrequency === 'semimonthly' ? `twice a month, on ${dayName(semi[0])} and ${dayName(semi[1])}` : a.payFrequency ? FREQUENCY_LABEL[a.payFrequency] : 'not set';
   const horizonLabel = (() => {
     if (!a.horizon || !a.payFrequency || !a.nextPayday) return 'Not set';
     const n = horizonCount(a.horizon, a.payFrequency, a.nextPayday);

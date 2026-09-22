@@ -22,13 +22,16 @@ export function migrate(raw: unknown): AppData | null {
   if (data.version === 1) data = v1ToV2(data as V1Data);
   if (data.version === 2) data = v2ToV3(data as V2Data);
   if (data.version === 3) data = v3ToV4(data as V3Data);
-  return data.version === 4 ? (data as AppData) : null;
+  if (data.version === 4) data = v4ToV5(data as V4Data);
+  return data.version === 5 ? (data as AppData) : null;
 }
 
 type V1Event = { id: string; source: string; amount: number; receivedOn: string; allocation: { kind: BonusAllocation['kind'] } | null };
 type V1Data = Omit<V2Data, 'version' | 'incomeEvents'> & { version: 1; incomeEvents: V1Event[] };
-type V3Answers = Omit<AppData['answers'], 'payType' | 'hourlyRate' | 'typicalHours' | 'tax'>;
-type V3Data = Omit<AppData, 'version' | 'answers'> & { version: 3; answers: V3Answers };
+type V4Answers = Omit<AppData['answers'], 'semimonthlyDays'>;
+type V4Data = Omit<AppData, 'version' | 'answers'> & { version: 4; answers: V4Answers };
+type V3Answers = Omit<V4Answers, 'payType' | 'hourlyRate' | 'typicalHours' | 'tax'>;
+type V3Data = Omit<V4Data, 'version' | 'answers'> & { version: 3; answers: V3Answers };
 type V2Bucket = Omit<AppData['buckets'][number], 'defaultAmount'>;
 type V2Data = Omit<V3Data, 'version' | 'plans' | 'deposit' | 'extraPlanned' | 'buckets'> & { version: 2; buckets: V2Bucket[]; reserves?: unknown[] };
 
@@ -66,7 +69,7 @@ function v2ToV3(v2: V2Data): V3Data {
 }
 
 /** v4 adds the pay type (salary or hourly) and saved tax settings. Everyone before was on a salary. */
-function v3ToV4(v3: V3Data): AppData {
+function v3ToV4(v3: V3Data): V4Data {
   return {
     ...v3,
     version: 4,
@@ -79,6 +82,11 @@ export function parseStored(raw: unknown): AppData {
   const data = migrate(raw);
   if (!data) throw new Error('This budget was saved by a newer version of the app. Update the app to open it.');
   return data;
+}
+
+/** v5 records which two days twice-a-month pay lands on; earlier data assumed the 1st and 15th. */
+function v4ToV5(v4: V4Data): AppData {
+  return { ...v4, version: 5, answers: { ...v4.answers, semimonthlyDays: null } };
 }
 
 export class LocalStorageRepository implements Repository {

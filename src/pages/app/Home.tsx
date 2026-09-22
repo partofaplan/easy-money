@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, isHourly, nextPayday, planAssigned, planFor, takeHomeForHours } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, followingPayday, isHourly, planAssigned, planFor, takeHomeForHours } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -31,7 +31,7 @@ export function Home() {
   const period = current ?? undefined;
   const now = today();
   const irregular = data.answers.payFrequency === 'irregular';
-  const following = period && data.answers.payFrequency ? nextPayday(period.payday, data.answers.payFrequency) : null;
+  const following = period ? followingPayday(data.answers, period.payday) : null;
   // Which paycheck the confirm card is about: the current one until it is confirmed, then the next.
   // For irregular pay the next date is whatever the user enters.
   const toConfirm = period ? (confirmed ? (irregular && landedOn ? landedOn : following) : period.payday) : null;

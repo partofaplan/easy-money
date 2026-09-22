@@ -20,6 +20,11 @@ export interface TaxSettings {
 /** Everything the setup interview collects. Every field starts unanswered. */
 export interface Answers {
   payFrequency: PayFrequency | null;
+  /**
+   * For twice-a-month pay, the two days of the month paid on (31 means the last
+   * day). Null means the 1st and the 15th.
+   */
+  semimonthlyDays: [number, number] | null;
   /** ISO date, e.g. 2026-09-26 */
   nextPayday: string | null;
   bonuses: BonusPattern | null;
@@ -118,7 +123,7 @@ export interface PayPeriod {
 }
 
 export interface AppData {
-  version: 4;
+  version: 5;
   setupComplete: boolean;
   answers: Answers;
   buckets: Bucket[];
@@ -134,6 +139,7 @@ export interface AppData {
 
 export const emptyAnswers: Answers = {
   payFrequency: null,
+  semimonthlyDays: null,
   nextPayday: null,
   bonuses: null,
   horizon: null,

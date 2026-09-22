@@ -47,10 +47,11 @@ export const SAMPLE_EXPECTED_BONUS: IncomeEvent = {
 
 /** The fully set-up budget shown to people who skip the walkthrough. */
 export const DEMO_DATA: AppData = {
-  version: 4,
+  version: 5,
   setupComplete: true,
   answers: {
     payFrequency: 'biweekly',
+    semimonthlyDays: null,
     nextPayday: '2026-09-26',
     bonuses: 'sometimes',
     horizon: 'few',

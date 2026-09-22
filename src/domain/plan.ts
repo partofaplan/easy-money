@@ -9,8 +9,36 @@ import { addDays, addMonths, parseISO, toISO } from '../lib/dates';
 import { roundTo } from '../lib/money';
 import { netForHours } from './takeHome';
 
+/** Default twice-a-month pattern: the 1st and the 15th. */
+export const DEFAULT_SEMIMONTHLY: [number, number] = [1, 15];
+
+/** Presets offered for twice-a-month pay. 31 stands for the last day of the month. */
+export const SEMIMONTHLY_PRESETS: { days: [number, number]; label: string }[] = [
+  { days: [1, 15], label: 'The 1st and the 15th' },
+  { days: [15, 31], label: 'The 15th and the last day' },
+];
+
+/** The date for a day-of-month in a given month, clamped so 31 means the last day. */
+function dayInMonth(year: number, monthIndex: number, day: number): string {
+  const last = new Date(year, monthIndex + 1, 0).getDate();
+  return toISO(new Date(year, monthIndex, Math.min(day, last)));
+}
+
+/** Paydays on a twice-a-month pattern, from the given date onward (inclusive), earliest first. */
+export function semimonthlyPaydaysFrom(from: string, days: [number, number], count: number): string[] {
+  const start = parseISO(from);
+  const result: string[] = [];
+  for (let m = 0; result.length < count && m < 12; m += 1) {
+    const year = start.getFullYear();
+    const month = start.getMonth() + m;
+    const inMonth = [...days].sort((a, b) => a - b).map((d) => dayInMonth(year, month, d));
+    for (const iso of inMonth) if (iso >= from && !result.includes(iso)) result.push(iso);
+  }
+  return result.slice(0, count);
+}
+
 /** The payday after `payday` for a given frequency. */
-export function nextPayday(payday: string, frequency: PayFrequency): string {
+export function nextPayday(payday: string, frequency: PayFrequency, semimonthlyDays: [number, number] | null = null): string {
   switch (frequency) {
     case 'weekly':
       return addDays(payday, 7);
@@ -19,42 +47,47 @@ export function nextPayday(payday: string, frequency: PayFrequency): string {
       return addDays(payday, 14);
     case 'monthly':
       return addMonths(payday, 1);
-    case 'semimonthly': {
-      // Paid twice a month: if this payday is in the first half, the next one
-      // is 15 days later; otherwise it is the same day-of-month next month.
-      const d = parseISO(payday);
-      if (d.getDate() <= 15) return addDays(payday, 15);
-      const first = new Date(d.getFullYear(), d.getMonth() + 1, Math.max(1, d.getDate() - 15));
-      return toISO(first);
-    }
+    case 'semimonthly':
+      return semimonthlyPaydaysFrom(addDays(payday, 1), semimonthlyDays ?? DEFAULT_SEMIMONTHLY, 1)[0];
   }
 }
 
+/** True when `iso` falls on one of the twice-a-month pay days (with 31 meaning the last day). */
+export function isSemimonthlyPayday(iso: string, days: [number, number]): boolean {
+  const d = parseISO(iso);
+  return days.some((day) => dayInMonth(d.getFullYear(), d.getMonth(), day) === iso);
+}
+
 /** How many paychecks the Ahead view should show for a horizon. */
-export function horizonCount(horizon: PlanningHorizon, frequency: PayFrequency, firstPayday: string): number {
+export function horizonCount(horizon: PlanningHorizon, frequency: PayFrequency, firstPayday: string, semimonthlyDays: [number, number] | null = null): number {
   if (horizon === 'this') return 1;
   if (horizon === 'few') return 3;
   // Whole month: every payday that falls in the same calendar month as the first.
   const month = parseISO(firstPayday).getMonth();
   let count = 1;
-  let payday = nextPayday(firstPayday, frequency);
+  let payday = nextPayday(firstPayday, frequency, semimonthlyDays);
   while (parseISO(payday).getMonth() === month && count < 6) {
     count += 1;
-    payday = nextPayday(payday, frequency);
+    payday = nextPayday(payday, frequency, semimonthlyDays);
   }
   return count;
 }
 
 /** Generate `count` consecutive pay periods starting at `firstPayday`. */
-export function payPeriods(firstPayday: string, frequency: PayFrequency, takeHome: number, count: number): PayPeriod[] {
+export function payPeriods(firstPayday: string, frequency: PayFrequency, takeHome: number, count: number, semimonthlyDays: [number, number] | null = null): PayPeriod[] {
   const periods: PayPeriod[] = [];
   let payday = firstPayday;
   for (let i = 0; i < count; i += 1) {
-    const following = nextPayday(payday, frequency);
+    const following = nextPayday(payday, frequency, semimonthlyDays);
     periods.push({ payday, end: addDays(following, -1), takeHome });
     payday = following;
   }
   return periods;
+}
+
+/** The payday after the current one, honouring the twice-a-month pattern. */
+export function followingPayday(answers: Answers, payday: string): string | null {
+  return answers.payFrequency ? nextPayday(payday, answers.payFrequency, answers.semimonthlyDays) : null;
 }
 
 /** Split a paycheck across the starter buckets, rounded to $10, remainder to "Everything else". */
@@ -160,8 +193,8 @@ export function takeHomeFor(payday: string, answers: Answers, plans: PaycheckPla
 
 export function buildOutlook({ answers, bills, events, plans, deposit, extra = 0 }: OutlookInput): PeriodSummary[] {
   if (!answers.payFrequency || !answers.nextPayday) return [];
-  const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday) + extra;
-  return payPeriods(answers.nextPayday, answers.payFrequency, 0, count)
+  const count = horizonCount(answers.horizon ?? 'few', answers.payFrequency, answers.nextPayday, answers.semimonthlyDays) + extra;
+  return payPeriods(answers.nextPayday, answers.payFrequency, 0, count, answers.semimonthlyDays)
     .map((p) => ({ ...p, takeHome: takeHomeFor(p.payday, answers, plans, deposit) }))
     .map((p) => summarizePeriod(p, bills, events));
 }

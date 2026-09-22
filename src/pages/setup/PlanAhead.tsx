@@ -15,12 +15,12 @@ const OPTIONS: { value: PlanningHorizon; title: string; sub: string }[] = [
 export function PlanAhead() {
   const { data, answer } = useStore();
   const navigate = useNavigate();
-  const { horizon, payFrequency, nextPayday } = data.answers;
+  const { horizon, payFrequency, nextPayday, semimonthlyDays } = data.answers;
 
   const freq = payFrequency ?? 'biweekly';
   const start = nextPayday ?? '2026-09-26';
-  const shown = horizon ? horizonCount(horizon, freq, start) : 3;
-  const preview = payPeriods(start, freq, 0, Math.max(shown + 1, 4));
+  const shown = horizon ? horizonCount(horizon, freq, start, semimonthlyDays) : 3;
+  const preview = payPeriods(start, freq, 0, Math.max(shown + 1, 4), semimonthlyDays);
 
   return (
     <SetupFrame

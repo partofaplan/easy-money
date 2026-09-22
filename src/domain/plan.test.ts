@@ -10,7 +10,9 @@ import {
   takeHomeForHours,
   extraTotalForPayday,
   horizonCount,
+  isSemimonthlyPayday,
   nextPayday,
+  semimonthlyPaydaysFrom,
   payPeriods,
   periodForDate,
   suggestBuckets,
@@ -33,9 +35,31 @@ describe('nextPayday', () => {
     expect(nextPayday('2026-09-30', 'monthly')).toBe('2026-10-30');
     expect(nextPayday('2026-01-31', 'monthly')).toBe('2026-02-28');
   });
-  it('alternates 1st and 15th style for semimonthly', () => {
-    expect(nextPayday('2026-10-01', 'semimonthly')).toBe('2026-10-16');
+  it('follows the 1st-and-15th pattern by default', () => {
+    expect(nextPayday('2026-10-01', 'semimonthly')).toBe('2026-10-15');
+    expect(nextPayday('2026-10-15', 'semimonthly')).toBe('2026-11-01');
+    // A payday that is not on the pattern still moves to the next pattern day.
     expect(nextPayday('2026-10-16', 'semimonthly')).toBe('2026-11-01');
+  });
+
+  it('handles the 15th and the last day of the month', () => {
+    const days: [number, number] = [15, 31];
+    expect(nextPayday('2026-09-15', 'semimonthly', days)).toBe('2026-09-30');
+    expect(nextPayday('2026-09-30', 'semimonthly', days)).toBe('2026-10-15');
+    expect(nextPayday('2026-10-15', 'semimonthly', days)).toBe('2026-10-31');
+    expect(nextPayday('2026-10-31', 'semimonthly', days)).toBe('2026-11-15');
+    expect(nextPayday('2026-01-31', 'semimonthly', days)).toBe('2026-02-15');
+    expect(nextPayday('2026-02-15', 'semimonthly', days)).toBe('2026-02-28');
+    expect(nextPayday('2026-02-28', 'semimonthly', days)).toBe('2026-03-15');
+    expect(isSemimonthlyPayday('2026-02-28', days)).toBe(true);
+    expect(isSemimonthlyPayday('2026-02-27', days)).toBe(false);
+    expect(semimonthlyPaydaysFrom('2026-09-21', days, 3)).toEqual(['2026-09-30', '2026-10-15', '2026-10-31']);
+  });
+
+  it('accepts two custom days, in either order', () => {
+    expect(nextPayday('2026-10-05', 'semimonthly', [20, 5])).toBe('2026-10-20');
+    expect(nextPayday('2026-10-20', 'semimonthly', [20, 5])).toBe('2026-11-05');
+    expect(horizonCount('month', 'semimonthly', '2026-10-05', [20, 5])).toBe(2);
   });
 });
 
