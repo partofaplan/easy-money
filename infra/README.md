@@ -20,7 +20,9 @@ every push to `main`, authenticating through Workload Identity Federation
 ## One-time setup
 
 1. **Install and sign in to gcloud.** `brew install --cask google-cloud-sdk`, then
-   `gcloud auth login` and `gcloud auth application-default login` (Terraform uses the second).
+   `gcloud auth login`, `gcloud auth application-default login` (Terraform uses this one) and
+   `gcloud auth application-default set-quota-project <project-id>`. The account you use needs
+   the **Owner** role on the project: Terraform grants IAM roles, which Editor cannot do.
 2. **Have a project with billing.** Either use an existing one or:
    ```sh
    gcloud projects create easy-money-poc --name="Easy Money"
@@ -33,6 +35,8 @@ every push to `main`, authenticating through Workload Identity Federation
    terraform init
    terraform apply
    ```
+   On a brand-new project the very first `apply` can fail while Google finishes enabling the
+   APIs it just turned on; run `terraform apply` again and it completes.
    Note the outputs: `workload_identity_provider`, `deployer_service_account`, `service_url`.
 4. **Tell GitHub how to deploy.** Repository → Settings → Secrets and variables → Actions → *Variables*:
    - `GCP_PROJECT_ID` = your project id
@@ -51,6 +55,18 @@ Until the first deploy the service runs Google's placeholder "hello" container.
   SHA, deploys it, and smoke-tests `/healthz` and a deep link.
 - Pull requests run typecheck, tests and build (`ci.yml`).
 - Roll back by redeploying an older image: `gcloud run deploy easy-money --image <older tag> --region us-central1`.
+
+## Who can deploy
+
+Workload Identity Federation only accepts tokens from this repository **and** the `main`
+branch (`deploy_branch` variable). A manual run of the deploy workflow works from `main`;
+from any other branch it is refused. Nothing else in GitHub can obtain the deployer identity.
+
+## Tearing down
+
+`terraform destroy` removes everything. Two things to know: a deleted Workload Identity
+pool keeps its id reserved for 30 days, so set `wif_pool_id` to a new value if you re-create
+within that window; and the Artifact Registry repo is deleted with its images.
 
 ## Remote Terraform state (recommended once more than one person applies)
 

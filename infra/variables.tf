@@ -20,3 +20,15 @@ variable "github_repository" {
   type        = string
   default     = "partofaplan/easy-money"
 }
+
+variable "deploy_branch" {
+  description = "Only workflows running on this branch can deploy."
+  type        = string
+  default     = "main"
+}
+
+variable "wif_pool_id" {
+  description = "Workload Identity pool id. Deleted pools keep their id for 30 days, so change this after a destroy."
+  type        = string
+  default     = "github"
+}

@@ -44,12 +44,15 @@ resource "google_artifact_registry_repository" "images" {
 resource "google_service_account" "runtime" {
   account_id   = "${var.service_name}-run"
   display_name = "Easy Money Cloud Run runtime"
+  depends_on   = [google_project_service.apis]
 }
 
 resource "google_cloud_run_v2_service" "app" {
   name     = var.service_name
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
+  # A proof of concept: let `terraform destroy` remove the service.
+  deletion_protection = false
 
   template {
     service_account = google_service_account.runtime.email
@@ -74,8 +77,15 @@ resource "google_cloud_run_v2_service" "app" {
   }
 
   lifecycle {
-    # Deploys change the image; Terraform should not roll them back.
-    ignore_changes = [template[0].containers[0].image, client, client_version]
+    # Deploys change the image and stamp the template with client labels and
+    # annotations; Terraform should not roll any of that back.
+    ignore_changes = [
+      template[0].containers[0].image,
+      template[0].labels,
+      template[0].annotations,
+      client,
+      client_version,
+    ]
   }
 
   depends_on = [google_project_service.apis]

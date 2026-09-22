@@ -4,10 +4,13 @@
 resource "google_service_account" "deployer" {
   account_id   = "${var.service_name}-deployer"
   display_name = "Easy Money GitHub Actions deployer"
+  depends_on   = [google_project_service.apis]
 }
 
+# Note: a deleted pool keeps its id reserved for 30 days. Change
+# `wif_pool_id` if you destroy and re-create within that window.
 resource "google_iam_workload_identity_pool" "github" {
-  workload_identity_pool_id = "github"
+  workload_identity_pool_id = var.wif_pool_id
   display_name              = "GitHub Actions"
   depends_on                = [google_project_service.apis]
 }
@@ -22,8 +25,8 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.repository" = "assertion.repository"
     "attribute.ref"        = "assertion.ref"
   }
-  # Only this repository may use the pool.
-  attribute_condition = "assertion.repository == \"${var.github_repository}\""
+  # Only this repository, and only its deploy branch, may become the deployer.
+  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.ref == \"refs/heads/${var.deploy_branch}\""
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
