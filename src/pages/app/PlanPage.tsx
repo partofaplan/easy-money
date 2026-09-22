@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { planAssigned, planFor, plannedAmount } from '../../domain/plan';
+import { isHourly, planAssigned, planFor, plannedAmount, takeHomeForHours } from '../../domain/plan';
 import type { PaycheckPlan } from '../../domain/types';
 import { fmtShort, fmtWeekday, ordinalDay } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -31,10 +31,11 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
   const stored = data.plans.some((p) => p.payday === plan.payday);
   const current = index === 0;
   const readOnly = confirmedAmount !== null;
+  const hourly = isHourly(data.answers);
 
   const setAllocation = (id: string, amount: number | null) => setPlan({ ...plan, allocations: { ...plan.allocations, [id]: amount ?? 0 } });
   const useDefaults = () => setPlan({ ...plan, allocations: Object.fromEntries(buckets.map((b) => [b.id, b.defaultAmount])) });
-  const copyPrevious = () => previous && setPlan({ ...plan, takeHome: previous.takeHome, allocations: { ...previous.allocations } });
+  const copyPrevious = () => previous && setPlan({ ...plan, takeHome: previous.takeHome, hours: previous.hours, allocations: { ...previous.allocations } });
 
   return (
     <section className="card stack" style={{ gap: 12, borderColor: current ? 'var(--accent)' : undefined, borderWidth: current ? 1.5 : 1 }} aria-labelledby={`plan-${plan.payday}`}>
@@ -60,13 +61,31 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
         </span>
       </div>
 
+      {hourly && !readOnly && (
+        <div className="field" style={{ maxWidth: 240 }}>
+          <label htmlFor={`hours-${plan.payday}`}>Hours this paycheck</label>
+          <MoneyInput
+            id={`hours-${plan.payday}`}
+            value={plan.hours ?? null}
+            onChange={(v) => setPlan({ ...plan, hours: v ?? undefined, takeHome: takeHomeForHours(data.answers, v ?? data.answers.typicalHours ?? 0) })}
+            prefix=""
+            unit="hrs"
+          />
+          <span className="small muted">
+            {fmt(data.answers.hourlyRate ?? 0)}/hr, netted with your tax details. <Link to="/setup/estimate">Adjust</Link>
+          </span>
+        </div>
+      )}
       <div className="field" style={{ maxWidth: 240 }}>
-        <label htmlFor={`take-${plan.payday}`}>Expected take-home</label>
-        {confirmedAmount !== null ? (
+        <label htmlFor={`take-${plan.payday}`}>{hourly ? 'Take-home for those hours' : 'Expected take-home'}</label>
+        {confirmedAmount !== null || hourly ? (
           <div className="input" style={{ background: 'var(--tint)', borderColor: 'transparent' }}>
             <span className="unit">$</span>
-            <span style={{ fontWeight: 700 }}>{confirmedAmount.toLocaleString('en-US')}</span>
-            <span className="small muted">landed{extra > 0 ? `, +${fmt(extra)} extra` : ''}</span>
+            <span style={{ fontWeight: 700 }}>{(confirmedAmount ?? plan.takeHome).toLocaleString('en-US')}</span>
+            <span className="small muted">
+              {confirmedAmount !== null ? (data.deposit?.hours ? `landed for ${data.deposit.hours} hours` : 'landed') : 'estimated'}
+              {extra > 0 ? `, +${fmt(extra)} extra` : ''}
+            </span>
           </div>
         ) : (
           <MoneyInput id={`take-${plan.payday}`} value={plan.takeHome} onChange={(v) => setPlan({ ...plan, takeHome: v ?? 0 })} />

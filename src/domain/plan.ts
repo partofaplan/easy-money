@@ -7,6 +7,7 @@ import type { Answers, Bill, Bucket, Deposit, IncomeEvent, PaycheckPlan, PayFreq
 import { STARTER_BUCKETS } from '../data/fixtures';
 import { addDays, addMonths, parseISO, toISO } from '../lib/dates';
 import { roundTo } from '../lib/money';
+import { netForHours } from './takeHome';
 
 /** The payday after `payday` for a given frequency. */
 export function nextPayday(payday: string, frequency: PayFrequency): string {
@@ -153,7 +154,8 @@ export interface OutlookInput {
 /** Take-home for a payday: what actually landed, else what the plan expects, else the setup default. */
 export function takeHomeFor(payday: string, answers: Answers, plans: PaycheckPlan[], deposit: Deposit | null): number {
   if (deposit?.payday === payday) return deposit.amount;
-  return plans.find((p) => p.payday === payday)?.takeHome ?? answers.paycheckAmount ?? 0;
+  const stored = plans.find((p) => p.payday === payday);
+  return stored ? planTakeHome(stored, answers) : defaultTakeHome(answers);
 }
 
 export function buildOutlook({ answers, bills, events, plans, deposit, extra = 0 }: OutlookInput): PeriodSummary[] {
@@ -164,13 +166,44 @@ export function buildOutlook({ answers, bills, events, plans, deposit, extra = 0
     .map((p) => summarizePeriod(p, bills, events));
 }
 
+export function isHourly(answers: Answers): boolean {
+  return answers.payType === 'hourly' && (answers.hourlyRate ?? 0) > 0;
+}
+
+/** Take-home for a number of hours under this user's rate, frequency and taxes. */
+export function takeHomeForHours(answers: Answers, hours: number): number {
+  if (!isHourly(answers) || !answers.payFrequency) return answers.paycheckAmount ?? 0;
+  return netForHours(answers.hourlyRate ?? 0, hours, answers.payFrequency, answers.tax);
+}
+
+/**
+ * The take-home a paycheck starts from when nothing else is known: the typical
+ * hours netted out for hourly pay, else the amount given at setup. The one
+ * place this is decided.
+ */
+export function defaultTakeHome(answers: Answers): number {
+  return isHourly(answers) ? takeHomeForHours(answers, answers.typicalHours ?? 0) : (answers.paycheckAmount ?? 0);
+}
+
+/**
+ * What a plan expects to land. Hourly plans are netted from their hours at read
+ * time, so a later change to the rate or tax details flows into every plan.
+ */
+export function planTakeHome(plan: PaycheckPlan, answers: Answers): number {
+  if (!isHourly(answers)) return plan.takeHome;
+  return takeHomeForHours(answers, plan.hours ?? answers.typicalHours ?? 0);
+}
+
 /** The plan for a payday: the stored one, or a fresh one from each bucket's default amount. */
 export function planFor(payday: string, plans: PaycheckPlan[], buckets: Bucket[], answers: Answers): PaycheckPlan {
   const stored = plans.find((p) => p.payday === payday);
-  if (stored) return stored;
+  if (stored) return { ...stored, takeHome: planTakeHome(stored, answers) };
+  const hourly = isHourly(answers);
+  const hours = hourly ? (answers.typicalHours ?? 0) : undefined;
   return {
     payday,
-    takeHome: answers.paycheckAmount ?? 0,
+    takeHome: defaultTakeHome(answers),
+    hours,
     allocations: Object.fromEntries(buckets.map((b) => [b.id, b.defaultAmount])),
   };
 }

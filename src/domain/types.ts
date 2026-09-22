@@ -4,6 +4,19 @@ export type PlanningHorizon = 'this' | 'few' | 'month';
 export type BucketChoice = 'auto' | 'custom';
 export type ThemeChoice = 'system' | 'light' | 'dark';
 
+export type PayType = 'salary' | 'hourly';
+
+/** What the take-home estimator needs besides gross pay. Saved so hourly pay can be netted out any time. */
+export interface TaxSettings {
+  /** Two-letter state code, or empty when unknown (no state tax applied). */
+  stateCode: string;
+  filing: 'single' | 'married' | 'head';
+  /** Percent of gross to retirement, e.g. 4 for 4%. */
+  retirementPct: number;
+  /** Health premium per paycheck, pre-tax. */
+  healthPerPaycheck: number;
+}
+
 /** Everything the setup interview collects. Every field starts unanswered. */
 export interface Answers {
   payFrequency: PayFrequency | null;
@@ -12,8 +25,16 @@ export interface Answers {
   bonuses: BonusPattern | null;
   horizon: PlanningHorizon | null;
   bucketChoice: BucketChoice | null;
-  /** Typical after-tax paycheck, in dollars. */
+  /** Typical after-tax paycheck, in dollars. For hourly pay, the take-home for typical hours. */
   paycheckAmount: number | null;
+  /** Salary (a steady amount) or hourly (hours decide each paycheck). */
+  payType: PayType;
+  /** Gross pay per hour, for hourly pay. */
+  hourlyRate: number | null;
+  /** Hours usually worked in one paycheck, for hourly pay. */
+  typicalHours: number | null;
+  /** Saved from the estimator; null until the user has been through it. */
+  tax: TaxSettings | null;
 }
 
 export interface Bucket {
@@ -72,8 +93,10 @@ export interface BonusAllocation {
 export interface PaycheckPlan {
   /** ISO payday this plan is for. */
   payday: string;
-  /** Take-home expected on that payday. */
+  /** Take-home expected on that payday. For hourly pay, derived from `hours`. */
   takeHome: number;
+  /** Hours expected in this paycheck, for hourly pay. */
+  hours?: number;
   /** Amount to fill into each bucket, by bucket id. Buckets not listed get 0. */
   allocations: Record<string, number>;
 }
@@ -82,6 +105,8 @@ export interface PaycheckPlan {
 export interface Deposit {
   payday: string;
   amount: number;
+  /** Hours worked, when pay is hourly. */
+  hours?: number;
 }
 
 export interface PayPeriod {
@@ -93,7 +118,7 @@ export interface PayPeriod {
 }
 
 export interface AppData {
-  version: 3;
+  version: 4;
   setupComplete: boolean;
   answers: Answers;
   buckets: Bucket[];
@@ -114,4 +139,8 @@ export const emptyAnswers: Answers = {
   horizon: null,
   bucketChoice: null,
   paycheckAmount: null,
+  payType: 'salary',
+  hourlyRate: null,
+  typicalHours: null,
+  tax: null,
 };

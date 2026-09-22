@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BucketRow } from '../../components/BucketRow';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, nextPayday, planAssigned, planFor } from '../../domain/plan';
+import { bucketDueStatus, bucketsDueInPeriod, extraTotalForPayday, isHourly, nextPayday, planAssigned, planFor, takeHomeForHours } from '../../domain/plan';
 import { DESKTOP, useMediaQuery } from '../../hooks/useMediaQuery';
 import { addDays, daysBetween, fmtShort, fmtWeekday, today } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -23,6 +23,8 @@ export function Home() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [landed, setLanded] = useState<number | null>(null);
   const [landedOn, setLandedOn] = useState<string>('');
+  const [hoursWorked, setHoursWorked] = useState<number | null>(null);
+  const hourly = isHourly(data.answers);
 
   const outlook = useOutlook();
   const { period: current, confirmed, takeHome, extraEvents, extra, planned, left } = useCurrentPaycheck();
@@ -124,6 +126,7 @@ export function Home() {
               </span>
               <span className="small muted">
                 Planned {fmt(planToConfirm.takeHome)}
+                {hourly && planToConfirm.hours ? ` for ${planToConfirm.hours} hours` : ''}
                 {extraToConfirm > 0 ? ` + ${fmt(extraToConfirm)} extra` : ''} · {fmt(assignedToConfirm)} assigned across {data.buckets.length} buckets.{' '}
                 {planGap !== 0 && (
                   <span style={{ color: 'var(--warn-text)', fontWeight: 700 }}>{planGap > 0 ? `${fmt(planGap)} unassigned. ` : `${fmt(-planGap)} over. `}</span>
@@ -139,6 +142,7 @@ export function Home() {
                 onClick={() => {
                   setConfirming(toConfirm);
                   setLanded(planToConfirm.takeHome);
+                  setHoursWorked(planToConfirm.hours ?? data.answers.typicalHours ?? null);
                   if (irregular && confirmed) setLandedOn(following ?? addDays(period!.payday, 14));
                 }}
               >
@@ -158,7 +162,7 @@ export function Home() {
                   !early ||
                   window.confirm(`${fmtWeekday(toConfirm)} is ${daysBetween(now, toConfirm)} days away. Confirm anyway? This starts a new paycheck and resets this one's spending.`)
                 ) {
-                  confirmPaycheck(toConfirm, landed);
+                  confirmPaycheck(toConfirm, landed, hourly && hoursWorked ? hoursWorked : undefined);
                   setConfirming(null);
                 }
               }}
@@ -171,8 +175,23 @@ export function Home() {
                   </div>
                 </div>
               )}
+              {hourly && (
+                <div className="field">
+                  <label htmlFor="hours-worked">Hours worked</label>
+                  <MoneyInput
+                    id="hours-worked"
+                    value={hoursWorked}
+                    onChange={(v) => {
+                      setHoursWorked(v);
+                      if (v && v > 0) setLanded(takeHomeForHours(data.answers, v));
+                    }}
+                    prefix=""
+                    unit="hrs"
+                  />
+                </div>
+              )}
               <div className="field grow">
-                <label htmlFor="landed">What actually landed</label>
+                <label htmlFor="landed">{hourly ? 'What actually landed (edit if different)' : 'What actually landed'}</label>
                 <MoneyInput id="landed" value={landed} onChange={setLanded} />
               </div>
               <button type="submit" className="btn btn-primary" style={{ minHeight: 48 }} disabled={!landed || landed <= 0}>
@@ -201,7 +220,10 @@ export function Home() {
       <div className="hero" style={{ marginTop: 20 }}>
         <div className="between" style={{ alignItems: 'flex-start' }}>
           <span className="stack" style={{ gap: 6 }}>
-            <span className="eyebrow">{extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}</span>
+            <span className="eyebrow">
+              {extra > 0 ? 'This paycheck plus extra' : confirmed ? 'Landed this paycheck' : 'Expected this paycheck'}
+              {confirmed && data.deposit?.hours ? ` · ${data.deposit.hours} hours` : ''}
+            </span>
             <span className="display amount">{fmt(available)}</span>
             {extra > 0 && (
               <span style={{ fontSize: 14, opacity: 0.9 }}>

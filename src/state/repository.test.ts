@@ -16,7 +16,8 @@ describe('migrate', () => {
       ],
     };
     const out = migrate(v1)!;
-    expect(out.version).toBe(3);
+    expect(out.version).toBe(4);
+    expect(out.answers.payType).toBe('salary');
     expect(out.plans).toEqual([]);
     expect(out.deposit).toBeNull();
     expect('reserves' in out).toBe(false);
@@ -29,7 +30,7 @@ describe('migrate', () => {
     expect(migrate(null)).toBeNull();
     const v2 = { version: 2, buckets: [{ id: 'a', name: 'A', planned: 1, spent: 0, kind: 'spending', monthlyTarget: 5, balance: 2 }], incomeEvents: [], answers: {} };
     const out = migrate(v2)!;
-    expect(out.version).toBe(3);
+    expect(out.version).toBe(4);
     expect(out.buckets[0]).toEqual({ id: 'a', name: 'A', planned: 1, defaultAmount: 1, spent: 0, kind: 'spending', dueDay: undefined, paidOn: undefined });
     expect(migrate({ version: 7 })).toBeNull();
   });

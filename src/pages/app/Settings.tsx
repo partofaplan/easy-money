@@ -4,6 +4,7 @@ import { Icon, type IconName } from '../../components/Icon';
 import { OptionCard } from '../../components/OptionCard';
 import type { ThemeChoice } from '../../domain/types';
 import { fmt } from '../../lib/money';
+import { FREQUENCY_LABEL } from '../../domain/plan';
 import { useProfiles } from '../../state/profileContext';
 import { useStore } from '../../state/store';
 import { useTheme } from '../../state/theme';
@@ -16,7 +17,12 @@ const OPTIONS: { value: ThemeChoice; title: string; sub?: string; icon: IconName
 
 export function Settings() {
   const { choice, setChoice } = useTheme();
-  const { reset } = useStore();
+  const { data, reset } = useStore();
+  const a = data.answers;
+  const paySummary =
+    a.payType === 'hourly'
+      ? `By the hour, ${fmt(a.hourlyRate ?? 0)}/hr, ${a.typicalHours ?? 0} hours typical`
+      : `A set amount, ${fmt(a.paycheckAmount ?? 0)} take-home`;
   const { active, profiles, rename, remove } = useProfiles();
   const navigate = useNavigate();
   const [name, setName] = useState(active?.name ?? '');
@@ -110,6 +116,17 @@ export function Settings() {
       </div>
 
       <div className="list-card">
+        <Link to="/setup/estimate" className="list-row between">
+          <span className="stack" style={{ gap: 2 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>Pay &amp; taxes</span>
+            <span className="small muted">
+              {paySummary}, paid {a.payFrequency ? FREQUENCY_LABEL[a.payFrequency] : ''}.
+            </span>
+          </span>
+          <span className="muted">
+            <Icon name="chevronRight" />
+          </span>
+        </Link>
         <Link to="/setup/pay" className="list-row between">
           <span style={{ fontWeight: 700, fontSize: 15 }}>Paydays &amp; income</span>
           <span className="muted">

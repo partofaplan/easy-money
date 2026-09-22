@@ -7,6 +7,7 @@ import {
   planAssigned,
   planFor,
   takeHomeFor,
+  takeHomeForHours,
   extraTotalForPayday,
   horizonCount,
   nextPayday,
@@ -187,5 +188,33 @@ describe('paycheck plans', () => {
   it('gives each upcoming paycheck its planned take-home', () => {
     const outlook = buildOutlook({ answers: { ...answers, paycheckAmount: 2000 }, bills: [], events: [], plans, deposit, extra: 1 });
     expect(outlook.map((s) => s.period.takeHome)).toEqual([2140, 2140, 2000, 2000]);
+  });
+});
+
+describe('hourly pay plans', () => {
+  const { buckets } = DEMO_DATA;
+  const hourly = { ...DEMO_DATA.answers, payType: 'hourly' as const, hourlyRate: 22, typicalHours: 80, paycheckAmount: 1400 };
+
+  it('starts a new plan from typical hours and their take-home', () => {
+    const plan = planFor('2026-10-24', [], buckets, hourly);
+    expect(plan.hours).toBe(80);
+    expect(plan.takeHome).toBe(takeHomeForHours(hourly, 80));
+    expect(plan.takeHome).toBeGreaterThan(0);
+  });
+
+  it('re-nets stored plans when the rate or taxes change', () => {
+    const stored = [{ payday: '2026-10-10', takeHome: 999, hours: 60, allocations: {} }];
+    const before = planFor('2026-10-10', stored, buckets, hourly).takeHome;
+    expect(before).toBe(takeHomeForHours(hourly, 60));
+    const raise = { ...hourly, hourlyRate: 30 };
+    expect(planFor('2026-10-10', stored, buckets, raise).takeHome).toBeGreaterThan(before);
+    expect(takeHomeFor('2026-10-10', raise, stored, null)).toBe(planFor('2026-10-10', stored, buckets, raise).takeHome);
+    // A salaried plan keeps the amount typed into it.
+    expect(planFor('2026-10-10', stored, buckets, DEMO_DATA.answers).takeHome).toBe(999);
+  });
+
+  it('falls back to the fixed amount for salaried pay', () => {
+    expect(takeHomeForHours(DEMO_DATA.answers, 80)).toBe(2140);
+    expect(planFor('2026-10-24', [], buckets, DEMO_DATA.answers).hours).toBeUndefined();
   });
 });
