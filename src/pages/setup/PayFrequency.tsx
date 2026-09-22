@@ -10,7 +10,7 @@ import { useStore } from '../../state/store';
 const OPTIONS: { value: Freq; title: string; sub?: string }[] = [
   { value: 'weekly', title: 'Every week' },
   { value: 'biweekly', title: 'Every two weeks', sub: '26 paychecks a year' },
-  { value: 'semimonthly', title: 'Twice a month', sub: 'Like the 1st and the 15th' },
+  { value: 'semimonthly', title: 'Twice a month', sub: 'The 1st and 15th, the 15th and last day, or any two days' },
   { value: 'monthly', title: 'Once a month' },
   { value: 'irregular', title: 'It varies', sub: 'Tips, gigs, freelance, hourly with changing shifts' },
 ];
