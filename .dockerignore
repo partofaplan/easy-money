@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.github
+.claude
+infra/.terraform
+infra/*.tfstate*
+infra/*.tfvars
+*.md
