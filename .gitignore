@@ -3,3 +3,7 @@ dist
 .DS_Store
 *.local
 .claude/worktrees/
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars

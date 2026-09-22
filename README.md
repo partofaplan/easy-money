@@ -14,6 +14,11 @@ npm test           # domain logic tests
 npm run build      # typecheck + production build
 ```
 
+## Deploying
+
+See [infra/README.md](infra/README.md): Terraform creates a Cloud Run service on
+Google Cloud, and GitHub Actions deploys every push to `main`.
+
 ## Proof-of-concept notes
 
 The design and flow are still moving, so nothing here depends on a backend.
