@@ -26,10 +26,14 @@ export function PayFrequency() {
   const paydayFitsPattern = payFrequency !== 'semimonthly' || !nextPayday || isSemimonthlyPayday(nextPayday, days);
   const ready = payFrequency !== null && !!nextPayday && paydayFitsPattern;
 
-  /** Choose the two pay days and point the next payday at the first one coming up. */
-  const chooseDays = (next: [number, number]) => {
+  /**
+   * Choose the two pay days and point the next payday at the first one coming up.
+   * A date the user typed is kept when it still fits; `recompute` forces the next one.
+   */
+  const chooseDays = (next: [number, number], recompute = false) => {
     const upcoming = semimonthlyPaydaysFrom(today(), next, 1)[0] ?? null;
-    answer({ semimonthlyDays: next, nextPayday: nextPayday && isSemimonthlyPayday(nextPayday, next) ? nextPayday : upcoming });
+    const keep = !recompute && nextPayday && isSemimonthlyPayday(nextPayday, next);
+    answer({ semimonthlyDays: next, nextPayday: keep ? nextPayday : upcoming });
   };
 
   return (
@@ -87,7 +91,7 @@ export function PayFrequency() {
                         const next: [number, number] = [days[0], days[1]];
                         next[i] = Number(e.target.value);
                         setSameDay(next[0] === next[1]);
-                        if (next[0] !== next[1]) chooseDays(next);
+                        if (next[0] !== next[1]) chooseDays(next, true);
                       }}
                     >
                       {Array.from({ length: 31 }, (_, d) => d + 1).map((d) => (

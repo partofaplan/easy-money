@@ -199,6 +199,10 @@ p {
   background: transparent;
   color: var(--ink);
 }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .btn-primary {
   background: var(--accent);
   color: var(--on-accent);
