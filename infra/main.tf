@@ -81,6 +81,7 @@ resource "google_cloud_run_v2_service" "app" {
     # annotations; Terraform should not roll any of that back.
     ignore_changes = [
       template[0].containers[0].image,
+      labels,
       template[0].labels,
       template[0].annotations,
       client,

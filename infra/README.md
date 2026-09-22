@@ -55,6 +55,8 @@ Until the first deploy the service runs Google's placeholder "hello" container.
   SHA, deploys it, and smoke-tests `/healthz` and a deep link.
 - Pull requests run typecheck, tests and build (`ci.yml`).
 - Roll back by redeploying an older image: `gcloud run deploy easy-money --image <older tag> --region us-central1`.
+  Use an image the workflow built. An image built on an Apple Silicon Mac is arm64 and will not
+  start on Cloud Run, which runs amd64.
 
 ## Who can deploy
 
