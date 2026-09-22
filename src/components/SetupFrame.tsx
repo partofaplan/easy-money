@@ -9,6 +9,8 @@ interface Props {
   step: number | null;
   stepLabel?: string;
   backTo: string;
+  /** Step back inside the screen instead of leaving it. `backTo` is the fallback for the first step. */
+  onBack?: () => void;
   eyebrow?: string;
   title: string;
   lead?: string;
@@ -24,13 +26,29 @@ interface Props {
  * The interview frame. One question per screen at every width; on desktop the
  * question sits on the left and the answers on the right.
  */
-export function SetupFrame({ step, stepLabel, backTo, eyebrow, title, lead, why, children, actions, wide }: Props) {
+export function SetupFrame({ step, stepLabel, backTo, onBack, eyebrow, title, lead, why, children, actions, wide }: Props) {
+  const backIcon = onBack ? (
+    <button type="button" className="icon-btn back" aria-label="Back" onClick={onBack}>
+      <Icon name="chevronLeft" size={22} strokeWidth={2.2} />
+    </button>
+  ) : (
+    <Link to={backTo} className="icon-btn back" aria-label="Back">
+      <Icon name="chevronLeft" size={22} strokeWidth={2.2} />
+    </Link>
+  );
+  const backButton = onBack ? (
+    <button type="button" className="btn btn-outline back" onClick={onBack}>
+      Back
+    </button>
+  ) : (
+    <Link to={backTo} className="btn btn-outline back">
+      Back
+    </Link>
+  );
   return (
     <div className="setup">
       <header className="setup-top">
-        <Link to={backTo} className="icon-btn back" aria-label="Back">
-          <Icon name="chevronLeft" size={22} strokeWidth={2.2} />
-        </Link>
+        {backIcon}
         <Brand className="brand" />
         <div className="row grow progress-wrap">
           {step !== null ? (
@@ -78,9 +96,7 @@ export function SetupFrame({ step, stepLabel, backTo, eyebrow, title, lead, why,
         <div className="stack answers" style={{ minHeight: '100%' }}>
           {children}
           <div className="setup-actions">
-            <Link to={backTo} className="btn btn-outline back">
-              Back
-            </Link>
+            {backButton}
             {actions}
           </div>
         </div>

@@ -30,6 +30,11 @@ export interface Answers {
   bonuses: BonusPattern | null;
   horizon: PlanningHorizon | null;
   bucketChoice: BucketChoice | null;
+  /**
+   * Answers to the lifestyle questions behind "Choose for me", by question id.
+   * Optional so budgets saved before the guided flow existed still load.
+   */
+  lifestyle?: Record<string, string[]>;
   /** Typical after-tax paycheck, in dollars. For hourly pay, the take-home for typical hours. */
   paycheckAmount: number | null;
   /** Salary (a steady amount) or hourly (hours decide each paycheck). */

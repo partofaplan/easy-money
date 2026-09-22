@@ -3,6 +3,7 @@ import { Icon, type IconName } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import { SetupFrame } from '../../components/SetupFrame';
 import { DEFAULT_SEMIMONTHLY, defaultTakeHome, FREQUENCY_LABEL, horizonCount, isHourly } from '../../domain/plan';
+import { lifestyleComplete } from '../../domain/lifestyle';
 import { STATE_TAXES } from '../../data/taxTables';
 import { fmtWeekday, ordinalDay } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -29,6 +30,9 @@ export function Ready() {
     return n === 1 ? 'One paycheck at a time' : `Planning ${n} paychecks ahead`;
   })();
   const bucketNames = data.buckets.length > 0 ? data.buckets.map((b) => b.name) : starterBucketNames;
+  const guided = a.bucketChoice === 'auto' && lifestyleComplete(a.lifestyle);
+  const bucketsRoute = a.bucketChoice === 'custom' ? '/setup/buckets/customize' : guided ? '/setup/buckets/lifestyle' : '/setup/buckets';
+  const bucketsLabel = a.bucketChoice === 'custom' ? 'custom' : guided ? 'buckets built around your answers' : 'starter';
 
   const rows: { icon: IconName; title: string; sub: string; to: string }[] = [
     {
@@ -51,9 +55,9 @@ export function Ready() {
     },
     {
       icon: 'grid',
-      title: `${bucketNames.length} ${a.bucketChoice === 'custom' ? 'custom' : 'starter'} buckets`,
+      title: guided ? `${bucketNames.length} ${bucketsLabel}` : `${bucketNames.length} ${bucketsLabel} buckets`,
       sub: bucketNames.join(', ') + '.',
-      to: a.bucketChoice === 'custom' ? '/setup/buckets/customize' : '/setup/buckets',
+      to: bucketsRoute,
     },
   ];
 

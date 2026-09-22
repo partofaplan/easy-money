@@ -18,6 +18,7 @@ import { Bonuses } from './pages/setup/Bonuses';
 import { PlanAhead } from './pages/setup/PlanAhead';
 import { Buckets } from './pages/setup/Buckets';
 import { CustomizeBuckets } from './pages/setup/CustomizeBuckets';
+import { LifestyleBuckets } from './pages/setup/LifestyleBuckets';
 import { Ready } from './pages/setup/Ready';
 import { Estimate } from './pages/setup/Estimate';
 import { Home } from './pages/app/Home';
@@ -152,6 +153,7 @@ function AppRoutes() {
       <Route path="/setup/bonuses" element={<Bonuses />} />
       <Route path="/setup/ahead" element={<PlanAhead />} />
       <Route path="/setup/buckets" element={<Buckets />} />
+      <Route path="/setup/buckets/lifestyle" element={<LifestyleBuckets />} />
       <Route path="/setup/buckets/customize" element={<CustomizeBuckets />} />
       <Route path="/setup/ready" element={<Ready />} />
       <Route path="/setup/estimate" element={<Estimate />} />

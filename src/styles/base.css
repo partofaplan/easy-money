@@ -297,6 +297,10 @@ p {
   border: 2px solid var(--ring);
   flex-shrink: 0;
 }
+/* A question that takes several answers uses a checkbox instead. */
+.radio.box {
+  border-radius: 8px;
+}
 .radio.on {
   border: 0;
   background: var(--accent);
