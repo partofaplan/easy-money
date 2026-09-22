@@ -8,7 +8,7 @@ import type { Repository } from './repository';
 import { registerFlush } from './pendingSaves';
 
 export const initialData: AppData = {
-  version: 4,
+  version: 5,
   setupComplete: false,
   answers: emptyAnswers,
   buckets: [],
@@ -137,7 +137,7 @@ export function reducer(state: AppData, action: Action): AppData {
         return { ...state, deposit, plans: remaining, buckets: fillFromPlan(state.buckets, plan) };
       }
       // Irregular pay has no fixed next date, so any later date counts; otherwise it must be the next payday.
-      const isNext = payFrequency === 'irregular' ? action.payday > current : action.payday === nextPayday(current, payFrequency);
+      const isNext = payFrequency === 'irregular' ? action.payday > current : action.payday === nextPayday(current, payFrequency, state.answers.semimonthlyDays);
       if (isNext) {
         // The next paycheck landed: move to it, fill buckets, start spending fresh.
         return {

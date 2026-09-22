@@ -4,7 +4,8 @@ import { Icon, type IconName } from '../../components/Icon';
 import { OptionCard } from '../../components/OptionCard';
 import type { ThemeChoice } from '../../domain/types';
 import { fmt } from '../../lib/money';
-import { FREQUENCY_LABEL } from '../../domain/plan';
+import { DEFAULT_SEMIMONTHLY, FREQUENCY_LABEL } from '../../domain/plan';
+import { ordinalDay } from '../../lib/dates';
 import { useAuth } from '../../cloud/AuthProvider';
 import { useProfiles } from '../../state/profileContext';
 import { useStore } from '../../state/store';
@@ -20,6 +21,9 @@ export function Settings() {
   const { choice, setChoice } = useTheme();
   const { data, reset } = useStore();
   const a = data.answers;
+  const semi = [...(a.semimonthlyDays ?? DEFAULT_SEMIMONTHLY)].sort((x, y) => x - y);
+  const dayName = (d: number) => (d === 31 ? 'the last day' : `the ${ordinalDay(d)}`);
+  const payCadence = a.payFrequency === 'semimonthly' ? `on ${dayName(semi[0])} and ${dayName(semi[1])}` : a.payFrequency ? FREQUENCY_LABEL[a.payFrequency] : '';
   const paySummary =
     a.payType === 'hourly'
       ? `By the hour, ${fmt(a.hourlyRate ?? 0)}/hr, ${a.typicalHours ?? 0} hours typical`
@@ -136,7 +140,7 @@ export function Settings() {
           <span className="stack" style={{ gap: 2 }}>
             <span style={{ fontWeight: 700, fontSize: 15 }}>Pay &amp; taxes</span>
             <span className="small muted">
-              {paySummary}, paid {a.payFrequency ? FREQUENCY_LABEL[a.payFrequency] : ''}.
+              {paySummary}, paid {payCadence}.
             </span>
           </span>
           <span className="muted">

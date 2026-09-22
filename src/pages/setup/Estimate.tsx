@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
 import { SetupFrame } from '../../components/SetupFrame';
 import { STATE_TAXES, TAX_YEAR, type FilingStatus } from '../../data/taxTables';
-import { FREQUENCY_LABEL, nextPayday } from '../../domain/plan';
+import { followingPayday, FREQUENCY_LABEL } from '../../domain/plan';
 import { estimateTakeHome } from '../../domain/takeHome';
 import type { TaxSettings } from '../../domain/types';
 import { fmt, fmtSigned } from '../../lib/money';
@@ -244,7 +244,7 @@ export function Estimate() {
               </span>
               <span className="small muted">
                 Next payday {data.answers.nextPayday ? `is ${data.answers.nextPayday}` : 'not set'}; the one after is{' '}
-                {data.answers.nextPayday ? nextPayday(data.answers.nextPayday, frequency) : 'unknown'}.
+                {data.answers.nextPayday ? followingPayday(data.answers, data.answers.nextPayday) : 'unknown'}.
               </span>
             </div>
           )}
