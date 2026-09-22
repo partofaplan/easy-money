@@ -16,7 +16,14 @@ interface Props {
 /** One answer in a single-choice question. A real button, so it is keyboard and screen-reader friendly. */
 export function OptionCard({ selected, onSelect, title, sub, badge, icon, multi, children }: Props) {
   return (
-    <button type="button" className="option" aria-pressed={selected} onClick={onSelect}>
+    <button
+      type="button"
+      className="option"
+      role={multi ? 'checkbox' : undefined}
+      aria-checked={multi ? selected : undefined}
+      aria-pressed={multi ? undefined : selected}
+      onClick={onSelect}
+    >
       {icon && (
         <span className="iconbox">
           <Icon name={icon} />

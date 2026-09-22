@@ -13,7 +13,7 @@ function seed(): Bucket[] {
 }
 
 export function CustomizeBuckets() {
-  const { data, setBuckets } = useStore();
+  const { data, answer, setBuckets } = useStore();
   const navigate = useNavigate();
   const [list, setList] = useState<Bucket[]>(() => (data.buckets.length > 0 ? data.buckets : seed()));
 
@@ -37,6 +37,9 @@ export function CustomizeBuckets() {
           disabled={!valid}
           onClick={() => {
             setBuckets(list.map((b) => ({ ...b, name: b.name.trim() })));
+            // Once the list has been edited by hand it is a custom one, even if it
+            // started from the interview, so coming back here does not rebuild it.
+            answer({ bucketChoice: 'custom' });
             navigate('/setup/ready');
           }}
         >

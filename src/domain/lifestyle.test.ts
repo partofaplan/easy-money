@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketsFromLifestyle, lifestyleComplete, type LifestyleAnswers } from './lifestyle';
+import { bucketsFromLifestyle, canDrop, droppedFromSaved, firstUnansweredStep, lifestyleComplete, type LifestyleAnswers } from './lifestyle';
 import { rescaleBuckets } from './plan';
 import { BUCKET_CATALOG, LIFESTYLE_QUESTIONS, NONE_OPTION } from '../data/lifestyle';
 
@@ -52,10 +52,34 @@ describe('bucketsFromLifestyle', () => {
     expect(buckets.filter((b) => b.kind === 'savings').map((b) => b.name)).toEqual(['Emergency fund']);
   });
 
-  it('falls back to the starter set when every answer adds nothing', () => {
+  it('falls back to a plain starter set when every answer adds nothing', () => {
     expect(names(sayingNo())).toContain('Everything else');
     expect(names(sayingNo()).length).toBeGreaterThan(4);
     expect(names({})).toEqual(names(sayingNo()));
+  });
+
+  it('only ever produces envelopes the catalogue can describe', () => {
+    const known = new Set(BUCKET_CATALOG.map((t) => t.id));
+    const everyAnswer: LifestyleAnswers = {};
+    for (const q of LIFESTYLE_QUESTIONS) everyAnswer[q.id] = q.options.map((o) => o.id);
+    for (const answers of [sayingNo(), everyAnswer, {}]) {
+      for (const b of bucketsFromLifestyle(answers)) {
+        expect(known).toContain(b.id);
+        expect(BUCKET_CATALOG.find((t) => t.id === b.id)?.note).toBeTruthy();
+      }
+    }
+  });
+
+  it('puts the emergency fund first, because extra money goes to the first savings envelope', () => {
+    // Mirrors allocateIncome's `buckets.find((b) => b.kind === 'savings')`.
+    const buckets = bucketsFromLifestyle(sayingNo({ goals: ['travel', 'goal', 'emergency'] }));
+    expect(buckets.find((b) => b.kind === 'savings')?.name).toBe('Emergency fund');
+  });
+
+  it('always leaves exactly one catch-all', () => {
+    for (const answers of [sayingNo(), sayingNo({ home: ['rent'] }), {}]) {
+      expect(bucketsFromLifestyle(answers).filter((b) => b.id === 'other')).toHaveLength(1);
+    }
   });
 
   it('keeps the list in catalogue order, housing first', () => {
@@ -84,6 +108,44 @@ describe('the question catalogue', () => {
       if (q.multi) continue;
       expect(q.options.some((o) => o.adds.length === 0)).toBe(true);
     }
+  });
+});
+
+describe('canDrop', () => {
+  const buckets = bucketsFromLifestyle(sayingNo({ home: ['rent'], goals: ['emergency', 'travel'] }));
+
+  it('keeps the catch-all and the last place to save', () => {
+    expect(canDrop(buckets, 'other')).toBe(false);
+    expect(canDrop(buckets, 'rent')).toBe(true);
+    // Two savings envelopes, so either may go.
+    expect(canDrop(buckets, 'emergency')).toBe(true);
+    const oneLeft = buckets.filter((b) => b.id !== 'travel');
+    expect(canDrop(oneLeft, 'emergency')).toBe(false);
+  });
+});
+
+describe('droppedFromSaved', () => {
+  const answers = sayingNo({ home: ['rent'], goals: ['emergency'] });
+
+  it('remembers what was dropped last time', () => {
+    const suggested = bucketsFromLifestyle(answers);
+    const saved = suggested.filter((b) => b.id !== 'rent');
+    expect([...droppedFromSaved(answers, saved)]).toEqual(['rent']);
+  });
+
+  it('leaves a hand-edited or starter list alone rather than marking it all dropped', () => {
+    expect(droppedFromSaved(answers, [])).toEqual(new Set());
+    const custom = [{ id: 'bucket_x1', name: 'Boat', planned: 100, defaultAmount: 100, spent: 0, kind: 'spending' as const }];
+    expect(droppedFromSaved(answers, custom)).toEqual(new Set());
+    expect(droppedFromSaved({ home: ['rent'] }, bucketsFromLifestyle(answers))).toEqual(new Set());
+  });
+});
+
+describe('firstUnansweredStep', () => {
+  it('resumes at the first question with no answer', () => {
+    expect(firstUnansweredStep(undefined)).toBe(0);
+    expect(firstUnansweredStep({ [LIFESTYLE_QUESTIONS[0].id]: ['rent'] })).toBe(1);
+    expect(firstUnansweredStep(sayingNo())).toBe(LIFESTYLE_QUESTIONS.length);
   });
 });
 

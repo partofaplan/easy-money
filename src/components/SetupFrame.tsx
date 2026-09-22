@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Brand } from './Brand';
 import { Icon } from './Icon';
@@ -11,6 +11,12 @@ interface Props {
   backTo: string;
   /** Step back inside the screen instead of leaving it. `backTo` is the fallback for the first step. */
   onBack?: () => void;
+  /**
+   * Changes when the question changes without the route changing. Moves focus to
+   * the new heading, so a screen reader announces it and the keyboard does not
+   * fall back to the top of the page.
+   */
+  focusKey?: string | number;
   eyebrow?: string;
   title: string;
   lead?: string;
@@ -26,7 +32,12 @@ interface Props {
  * The interview frame. One question per screen at every width; on desktop the
  * question sits on the left and the answers on the right.
  */
-export function SetupFrame({ step, stepLabel, backTo, onBack, eyebrow, title, lead, why, children, actions, wide }: Props) {
+export function SetupFrame({ step, stepLabel, backTo, onBack, focusKey, eyebrow, title, lead, why, children, actions, wide }: Props) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusKey !== undefined) headingRef.current?.focus();
+  }, [focusKey]);
+
   const backIcon = onBack ? (
     <button type="button" className="icon-btn back" aria-label="Back" onClick={onBack}>
       <Icon name="chevronLeft" size={22} strokeWidth={2.2} />
@@ -72,7 +83,9 @@ export function SetupFrame({ step, stepLabel, backTo, onBack, eyebrow, title, le
       <div className={`setup-body ${wide ? 'wide' : ''}`}>
         <div className="intro">
           {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-          <h1 style={{ marginTop: eyebrow ? 12 : 12 }}>{title}</h1>
+          <h1 ref={headingRef} tabIndex={focusKey === undefined ? undefined : -1} style={{ marginTop: eyebrow ? 12 : 12, outline: 'none' }}>
+            {title}
+          </h1>
           {lead && (
             <p className="lead" style={{ marginTop: 12 }}>
               {lead}

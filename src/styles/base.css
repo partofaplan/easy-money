@@ -277,7 +277,8 @@ p {
   cursor: pointer;
   color: var(--ink);
 }
-.option[aria-pressed='true'] {
+.option[aria-pressed='true'],
+.option[aria-checked='true'] {
   background: var(--tint);
   border: 2px solid var(--accent);
   padding: 13.5px 17.5px;

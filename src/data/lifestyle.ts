@@ -38,9 +38,11 @@ export const BUCKET_CATALOG: readonly BucketTemplate[] = [
   { id: 'clothes', name: 'Clothes & shopping', kind: 'spending', note: 'Clothes and the things that are not quite groceries.' },
   { id: 'subscriptions', name: 'Subscriptions', kind: 'spending', note: 'Streaming, music and apps that renew on their own.' },
   { id: 'gifts', name: 'Gifts & holidays', kind: 'spending', note: 'A little each paycheck beats a December panic.' },
-  { id: 'travel', name: 'Travel', kind: 'savings', note: 'Saved up between trips.' },
+  // Extra money is allocated to the first savings envelope in this list (see
+  // `allocateIncome`), so the emergency fund comes before the other two.
   { id: 'emergency', name: 'Emergency fund', kind: 'savings', note: 'The one that turns an emergency into an inconvenience.' },
   { id: 'goal', name: 'Savings goal', kind: 'savings', note: 'Whatever you are working toward.' },
+  { id: 'travel', name: 'Travel', kind: 'savings', note: 'Saved up between trips.' },
   { id: 'savings', name: 'Savings', kind: 'savings', note: 'Money set aside for later.' },
   { id: 'other', name: 'Everything else', kind: 'spending', note: 'The catch-all, so one odd purchase never breaks the budget.' },
 ];
@@ -210,3 +212,18 @@ export const OTHER_WEIGHT = 45;
 
 /** Weight of the plain savings envelope added when no savings goal was picked. */
 export const FALLBACK_SAVINGS_WEIGHT = 60;
+
+/**
+ * What someone gets when their answers add up to nothing at all: no housing, no
+ * car, no shopping, "none of these" to the rest. Two envelopes would be useless,
+ * so this is a plain starter set. Drawn from the catalogue like everything else,
+ * so the summary can describe each one.
+ */
+export const FALLBACK_BUCKETS: readonly { bucket: string; weight: number }[] = [
+  { bucket: 'groceries', weight: 130 },
+  { bucket: 'bills', weight: 50 },
+  { bucket: 'dining', weight: 60 },
+  { bucket: 'health', weight: 40 },
+  { bucket: 'fun', weight: 50 },
+  { bucket: 'emergency', weight: 80 },
+];
