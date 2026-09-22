@@ -10,10 +10,19 @@ function readChoice(key: string): ThemeChoice {
   }
 }
 
+const CURRENT_KEY = 'easy-money.theme.current';
+
 function apply(choice: ThemeChoice) {
   const root = document.documentElement;
   if (choice === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', choice);
+  // The pre-paint script in index.html reads this, whichever profile or account is open.
+  try {
+    if (choice === 'system') localStorage.removeItem(CURRENT_KEY);
+    else localStorage.setItem(CURRENT_KEY, choice);
+  } catch {
+    // ignore
+  }
 }
 
 interface ThemeCtx {

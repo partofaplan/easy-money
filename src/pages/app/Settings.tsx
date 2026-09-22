@@ -5,6 +5,7 @@ import { OptionCard } from '../../components/OptionCard';
 import type { ThemeChoice } from '../../domain/types';
 import { fmt } from '../../lib/money';
 import { FREQUENCY_LABEL } from '../../domain/plan';
+import { useAuth } from '../../cloud/AuthProvider';
 import { useProfiles } from '../../state/profileContext';
 import { useStore } from '../../state/store';
 import { useTheme } from '../../state/theme';
@@ -24,6 +25,7 @@ export function Settings() {
       ? `By the hour, ${fmt(a.hourlyRate ?? 0)}/hr, ${a.typicalHours ?? 0} hours typical`
       : `A set amount, ${fmt(a.paycheckAmount ?? 0)} take-home`;
   const { active, profiles, rename, remove } = useProfiles();
+  const auth = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState(active?.name ?? '');
 
@@ -35,6 +37,20 @@ export function Settings() {
           Everything here belongs to {active?.name ?? 'this profile'}. Other profiles on this device keep their own.
         </p>
       </div>
+
+      {auth.status === 'signedIn' && auth.user && (
+        <section className="card between" aria-labelledby="account-heading" style={{ flexWrap: 'wrap' }}>
+          <span className="stack" style={{ gap: 2 }}>
+            <h2 id="account-heading" style={{ fontSize: 20 }}>
+              Account
+            </h2>
+            <span className="small muted">Signed in as {auth.user.email}. Your profiles and budgets are saved to this account.</span>
+          </span>
+          <button type="button" className="btn btn-outline btn-sm" style={{ minHeight: 44 }} onClick={() => void auth.signOut()}>
+            Sign out
+          </button>
+        </section>
+      )}
 
       <section className="card stack" aria-labelledby="profile-heading">
         <h2 id="profile-heading" style={{ fontSize: 20 }}>

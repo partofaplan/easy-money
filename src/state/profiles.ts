@@ -53,16 +53,41 @@ export function activeProfile(index: ProfileIndex): Profile | null {
   return index.profiles.find((p) => p.id === index.activeId) ?? null;
 }
 
+/** Where the profile list lives: this device (local mode) or the account (cloud mode). */
+export interface ProfileStore {
+  load(): Promise<ProfileIndex>;
+  save(index: ProfileIndex): Promise<void>;
+  /** Delete everything a profile stored. */
+  purge(profileId: string): Promise<void>;
+}
+
 interface KeyValueStore {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 }
 
-export class ProfileRegistry {
+export class ProfileRegistry implements ProfileStore {
   constructor(private readonly storage: KeyValueStore | null = safeLocalStorage()) {}
 
-  load(): ProfileIndex {
+  async load(): Promise<ProfileIndex> {
+    return this.loadSync();
+  }
+
+  async save(index: ProfileIndex): Promise<void> {
+    this.saveSync(index);
+  }
+
+  async purge(profileId: string): Promise<void> {
+    try {
+      this.storage?.removeItem(dataKey(profileId));
+      this.storage?.removeItem(themeKey(profileId));
+    } catch {
+      // ignore
+    }
+  }
+
+  loadSync(): ProfileIndex {
     if (!this.storage) return emptyIndex;
     try {
       const raw = this.storage.getItem(PROFILES_KEY);
@@ -76,21 +101,11 @@ export class ProfileRegistry {
     }
   }
 
-  save(index: ProfileIndex): void {
+  saveSync(index: ProfileIndex): void {
     try {
       this.storage?.setItem(PROFILES_KEY, JSON.stringify(index));
     } catch {
       // Storage unavailable; the app keeps working in memory.
-    }
-  }
-
-  /** Delete everything a profile stored. */
-  purge(profileId: string): void {
-    try {
-      this.storage?.removeItem(dataKey(profileId));
-      this.storage?.removeItem(themeKey(profileId));
-    } catch {
-      // ignore
     }
   }
 

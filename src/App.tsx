@@ -3,7 +3,12 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { StoreProvider, useStore } from './state/store';
 import { ThemeProvider } from './state/theme';
-import { useProfiles } from './state/profileContext';
+import { ProfileProvider, useProfiles } from './state/profileContext';
+import { AuthProvider, useAuth, type AuthUser } from './cloud/AuthProvider';
+import { cloudEnabled } from './cloud/firebase';
+import { FirestoreProfileStore, FirestoreRepository } from './cloud/firestoreStores';
+import { SignInPage } from './pages/SignInPage';
+import { ProfileRegistry } from './state/profiles';
 import { LocalStorageRepository } from './state/repository';
 import { dataKey, themeKey } from './state/profiles';
 import { ProfilesPage } from './pages/ProfilesPage';
@@ -27,10 +32,64 @@ function RequireSetup({ children }: { children: JSX.Element }) {
   return data.setupComplete ? children : <Navigate to="/" replace />;
 }
 
+function Splash({ text }: { text: string }) {
+  return (
+    <div className="welcome">
+      <div className="welcome-copy" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <span className="muted">{text}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Cloud mode: sign in first, then that account's profiles. Local mode: device
+ * profiles straight away. Either way the app below sees the same providers.
+ */
 export function App() {
-  const { active } = useProfiles();
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { status, user } = useAuth();
+  if (status === 'loading') return <Splash text="Signing you in…" />;
+  if (status === 'signedOut') {
+    return (
+      <ThemeProvider storageKey="easy-money.theme.signin">
+        <Routes>
+          <Route path="*" element={<SignInPage />} />
+        </Routes>
+      </ThemeProvider>
+    );
+  }
+  return <ProfilesForAccount user={status === 'signedIn' ? user : null} />;
+}
+
+const localProfiles = new ProfileRegistry();
+
+function ProfilesForAccount({ user }: { user: AuthUser | null }) {
+  const store = useMemo(() => (user ? new FirestoreProfileStore(user.uid, user.email) : localProfiles), [user]);
+  return (
+    <ProfileProvider key={user?.uid ?? 'local'} store={store}>
+      <BudgetForProfile user={user} />
+    </ProfileProvider>
+  );
+}
+
+function BudgetForProfile({ user }: { user: AuthUser | null }) {
+  const { ready, active } = useProfiles();
   const activeId = active?.id ?? null;
-  const repository = useMemo(() => (activeId ? new LocalStorageRepository(dataKey(activeId)) : null), [activeId]);
+  const repository = useMemo(() => {
+    if (!activeId) return null;
+    return user ? new FirestoreRepository(user.uid, activeId) : new LocalStorageRepository(dataKey(activeId));
+  }, [user, activeId]);
+  const scope = user ? `${user.uid}.` : '';
+
+  if (!ready) return <Splash text="Loading your profiles…" />;
 
   if (!active || !repository) {
     return (
@@ -45,13 +104,15 @@ export function App() {
   // Both providers are keyed by profile so switching remounts them with that
   // profile's data; neither relies on the other for isolation.
   return (
-    <ThemeProvider key={`theme-${active.id}`} storageKey={themeKey(active.id)}>
-      <StoreProvider key={`store-${active.id}`} repository={repository}>
+    <ThemeProvider key={`theme-${scope}${active.id}`} storageKey={themeKey(`${scope}${active.id}`)}>
+      <StoreProvider key={`store-${scope}${active.id}`} repository={repository} fallback={<Splash text="Opening your budget…" />}>
         <AppRoutes />
       </StoreProvider>
     </ThemeProvider>
   );
 }
+
+export { cloudEnabled };
 
 function AppRoutes() {
   return (

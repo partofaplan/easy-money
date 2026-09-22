@@ -18,9 +18,7 @@
     <script>
       // Apply the saved theme before first paint so there is no flash.
       try {
-        var idx = JSON.parse(localStorage.getItem('easy-money.profiles') || 'null');
-        var key = idx && idx.activeId ? 'easy-money.theme.' + idx.activeId : 'easy-money.theme';
-        var t = localStorage.getItem(key);
+        var t = localStorage.getItem('easy-money.theme.current');
         if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
     </script>

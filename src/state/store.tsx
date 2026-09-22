@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
 import { defaultTakeHome, fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
@@ -31,7 +31,8 @@ export type Action =
   | { type: 'setPlan'; plan: PaycheckPlan }
   | { type: 'planAnother' }
   | { type: 'confirmPaycheck'; payday: string; amount: number; hours?: number }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'hydrate'; data: AppData };
 
 export function reducer(state: AppData, action: Action): AppData {
   switch (action.type) {
@@ -152,6 +153,9 @@ export function reducer(state: AppData, action: Action): AppData {
 
     case 'reset':
       return initialData;
+
+    case 'hydrate':
+      return action.data;
   }
 }
 
@@ -176,12 +180,42 @@ interface Store {
 
 const StoreContext = createContext<Store | null>(null);
 
-export function StoreProvider({ children, repository }: { children: ReactNode; repository: Repository }) {
-  const [data, dispatch] = useReducer(reducer, undefined, () => repository.load() ?? initialData);
+interface StoreProviderProps {
+  children: ReactNode;
+  repository: Repository;
+  /** Shown while the budget loads. */
+  fallback?: ReactNode;
+}
 
+export function StoreProvider({ children, repository, fallback = null }: StoreProviderProps) {
+  const [data, dispatch] = useReducer(reducer, initialData);
+  const [hydrated, setHydrated] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load once per repository (each profile gets its own provider instance).
   useEffect(() => {
-    repository.save(data);
-  }, [data, repository]);
+    let cancelled = false;
+    repository.load().then((loaded) => {
+      if (cancelled) return;
+      dispatch({ type: 'hydrate', data: loaded ?? initialData });
+      setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repository]);
+
+  // Save shortly after each change, once loaded, so a burst of edits is one write.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void repository.save(data);
+    }, 400);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [data, hydrated, repository]);
 
   const store = useMemo<Store>(
     () => ({
@@ -199,13 +233,14 @@ export function StoreProvider({ children, repository }: { children: ReactNode; r
       planAnother: () => dispatch({ type: 'planAnother' }),
       confirmPaycheck: (payday, amount, hours) => dispatch({ type: 'confirmPaycheck', payday, amount, hours }),
       reset: () => {
-        repository.clear();
+        void repository.clear();
         dispatch({ type: 'reset' });
       },
     }),
     [data, repository],
   );
 
+  if (!hydrated) return <>{fallback}</>;
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
 

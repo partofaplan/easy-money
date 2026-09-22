@@ -1,14 +1,14 @@
 /**
- * Where app data is kept. The POC stores everything in the browser so the
- * flow can change freely; swapping in a server later means writing another
- * class with the same three methods.
+ * Where one profile's budget is kept. Local mode uses the browser;
+ * cloud mode uses Firestore (see cloud/firestoreStores.ts). Both implement
+ * the same three methods.
  */
 import type { AppData, BonusAllocation } from '../domain/types';
 
 export interface Repository {
-  load(): AppData | null;
-  save(data: AppData): void;
-  clear(): void;
+  load(): Promise<AppData | null>;
+  save(data: AppData): Promise<void>;
+  clear(): Promise<void>;
 }
 
 
@@ -78,7 +78,7 @@ export class LocalStorageRepository implements Repository {
   /** @param key the storage key this profile's budget lives under */
   constructor(private readonly key: string) {}
 
-  load(): AppData | null {
+  async load(): Promise<AppData | null> {
     try {
       const raw = localStorage.getItem(this.key);
       if (!raw) return null;
@@ -87,14 +87,14 @@ export class LocalStorageRepository implements Repository {
       return null;
     }
   }
-  save(data: AppData): void {
+  async save(data: AppData): Promise<void> {
     try {
       localStorage.setItem(this.key, JSON.stringify(data));
     } catch {
       // Storage may be unavailable (private mode); the app keeps working in memory.
     }
   }
-  clear(): void {
+  async clear(): Promise<void> {
     try {
       localStorage.removeItem(this.key);
     } catch {
@@ -105,13 +105,13 @@ export class LocalStorageRepository implements Repository {
 
 export class MemoryRepository implements Repository {
   private data: AppData | null = null;
-  load(): AppData | null {
+  async load(): Promise<AppData | null> {
     return this.data;
   }
-  save(data: AppData): void {
+  async save(data: AppData): Promise<void> {
     this.data = data;
   }
-  clear(): void {
+  async clear(): Promise<void> {
     this.data = null;
   }
 }
