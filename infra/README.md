@@ -52,7 +52,7 @@ Until the first deploy the service runs Google's placeholder "hello" container.
 ## Day to day
 
 - Every push to `main` runs tests, builds the image, pushes it tagged with the commit
-  SHA, deploys it, and smoke-tests `/healthz` and a deep link.
+  SHA, deploys it, and smoke-tests `/health` and a deep link.
 - Pull requests run typecheck, tests and build (`ci.yml`).
 - Roll back by redeploying an older image: `gcloud run deploy easy-money --image <older tag> --region us-central1`.
   Use an image the workflow built. An image built on an Apple Silicon Mac is arm64 and will not
@@ -89,5 +89,5 @@ the free tier. Artifact Registry storage is a few cents a month with the cleanup
 ```sh
 docker build -t easy-money .
 docker run --rm -p 8080:8080 easy-money
-curl localhost:8080/healthz
+curl localhost:8080/health
 ```

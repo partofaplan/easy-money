@@ -64,6 +64,6 @@ jobs:
 
       - name: Smoke test
         run: |
-          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/healthz"
+          curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/health"
           curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/app/plan" | grep -q '<div id="root">'
           echo "Deployed ${{ steps.deploy.outputs.url }}"
