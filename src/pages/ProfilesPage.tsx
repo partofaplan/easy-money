@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Brand } from '../components/Brand';
 import { Icon } from '../components/Icon';
+import { useAuth } from '../cloud/AuthProvider';
 import { useProfiles } from '../state/profileContext';
 
 /** Pick who is budgeting, or add someone. Each profile keeps its own budget and settings. */
 export function ProfilesPage() {
   const { profiles, active, create, switchTo } = useProfiles();
+  const auth = useAuth();
+  const signedIn = auth.status === 'signedIn' && auth.user;
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [adding, setAdding] = useState(profiles.length === 0 || params.get('add') === '1');
@@ -28,7 +31,9 @@ export function ProfilesPage() {
         <h1 style={{ marginTop: 44 }}>{profiles.length === 0 ? 'Who’s budgeting?' : 'Choose a profile'}</h1>
         <p className="lead" style={{ marginTop: 12 }}>
           {profiles.length === 0
-            ? 'Add a name to start. Everyone who shares this device can have their own budget and settings.'
+            ? signedIn
+              ? 'Add a name to start. A profile is one budget; you can keep more than one in your account.'
+              : 'Add a name to start. Everyone who shares this device can have their own budget and settings.'
             : 'Each profile keeps its own budget, plan and settings.'}
         </p>
 
@@ -97,7 +102,16 @@ export function ProfilesPage() {
         )}
 
         <span className="small muted" style={{ marginTop: 24 }}>
-          Profiles live on this device only. Nothing is sent anywhere.
+          {signedIn ? (
+            <>
+              Saved to {auth.user?.email}.{' '}
+              <button type="button" className="link small" onClick={() => void auth.signOut()}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            'Profiles live on this device only. Nothing is sent anywhere.'
+          )}
         </span>
       </div>
     </div>

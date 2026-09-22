@@ -5,6 +5,7 @@ import { OptionCard } from '../../components/OptionCard';
 import type { ThemeChoice } from '../../domain/types';
 import { fmt } from '../../lib/money';
 import { FREQUENCY_LABEL } from '../../domain/plan';
+import { useAuth } from '../../cloud/AuthProvider';
 import { useProfiles } from '../../state/profileContext';
 import { useStore } from '../../state/store';
 import { useTheme } from '../../state/theme';
@@ -24,6 +25,7 @@ export function Settings() {
       ? `By the hour, ${fmt(a.hourlyRate ?? 0)}/hr, ${a.typicalHours ?? 0} hours typical`
       : `A set amount, ${fmt(a.paycheckAmount ?? 0)} take-home`;
   const { active, profiles, rename, remove } = useProfiles();
+  const auth = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState(active?.name ?? '');
 
@@ -32,9 +34,23 @@ export function Settings() {
       <div className="page-head stack" style={{ gap: 6 }}>
         <h1>Settings</h1>
         <p className="muted" style={{ fontSize: 15 }}>
-          Everything here belongs to {active?.name ?? 'this profile'}. Other profiles on this device keep their own.
+          Everything here belongs to {active?.name ?? 'this profile'}. Other profiles {auth.status === 'signedIn' ? 'in your account' : 'on this device'} keep their own.
         </p>
       </div>
+
+      {auth.status === 'signedIn' && auth.user && (
+        <section className="card between" aria-labelledby="account-heading" style={{ flexWrap: 'wrap' }}>
+          <span className="stack" style={{ gap: 2 }}>
+            <h2 id="account-heading" style={{ fontSize: 20 }}>
+              Account
+            </h2>
+            <span className="small muted">Signed in as {auth.user.email}. Your profiles and budgets are saved to this account.</span>
+          </span>
+          <button type="button" className="btn btn-outline btn-sm" style={{ minHeight: 44 }} onClick={() => void auth.signOut()}>
+            Sign out
+          </button>
+        </section>
+      )}
 
       <section className="card stack" aria-labelledby="profile-heading">
         <h2 id="profile-heading" style={{ fontSize: 20 }}>
@@ -62,7 +78,7 @@ export function Settings() {
           <Link to="/profiles" className="list-row between">
             <span className="stack" style={{ gap: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>Switch profile</span>
-              <span className="small muted">{profiles.length === 1 ? 'Only you so far.' : `${profiles.length} profiles on this device.`}</span>
+              <span className="small muted">{profiles.length === 1 ? 'Only one so far.' : `${profiles.length} profiles${auth.status === 'signedIn' ? ' in your account' : ' on this device'}.`}</span>
             </span>
             <span className="muted">
               <Icon name="chevronRight" />
@@ -158,14 +174,14 @@ export function Settings() {
           className="list-row between"
           style={{ background: 'none', border: 0, cursor: 'pointer', width: '100%', borderTop: '1px solid var(--divider)' }}
           onClick={() => {
-            if (active && window.confirm(`Delete the profile "${active.name}" and its budget? This cannot be undone.`)) {
+            if (active && window.confirm(`Delete the profile "${active.name}" and its budget${auth.status === 'signedIn' ? ' from your account' : ''}? This cannot be undone.`)) {
               remove(active.id);
               navigate('/profiles');
             }
           }}
         >
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--clay)' }}>Delete this profile</span>
-          <span className="small muted">Removes it from this device</span>
+          <span className="small muted">{auth.status === 'signedIn' ? 'Removes it and its budget from your account' : 'Removes it from this device'}</span>
         </button>
       </div>
 

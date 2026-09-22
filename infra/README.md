@@ -16,6 +16,10 @@ every push to `main`, authenticating through Workload Identity Federation
 | Service account `easy-money-deployer` | What GitHub Actions becomes when deploying |
 | Workload Identity pool + provider `github` | Trusts GitHub's OIDC tokens for this repo only |
 | IAM bindings | Deployer can push images and update the service; everyone can invoke it |
+| Firebase project + web app | Registers the browser app; its public config is baked into the build |
+| Identity Platform config | Email + password sign-in; the Cloud Run host is an authorised domain |
+| Firestore database `(default)` | Each account's profiles and budgets, under `users/{uid}/...` |
+| Firestore rules (`firestore.rules`) | An account can read and write only its own `users/{uid}` tree |
 
 ## One-time setup
 
@@ -44,10 +48,35 @@ every push to `main`, authenticating through Workload Identity Federation
    - `GCP_WORKLOAD_IDENTITY_PROVIDER` = the `workload_identity_provider` output
    - `GCP_DEPLOYER_SERVICE_ACCOUNT` = the `deployer_service_account` output
    Or from a terminal: `gh variable set GCP_PROJECT_ID --body your-project-id` (and so on).
-5. **Deploy.** Merge to `main`, or run the *Deploy to Cloud Run* workflow by hand. The
+5. **Tell GitHub the Firebase config.** `terraform output firebase_web_config` prints four public
+   values; set them as repository variables `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+   `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`. They are baked into the build and are safe to
+   expose; the Firestore rules are what protect the data.
+6. **Deploy.** Merge to `main`, or run the *Deploy to Cloud Run* workflow by hand. The
    workflow prints the URL; `terraform output service_url` shows it too.
 
 Until the first deploy the service runs Google's placeholder "hello" container.
+
+## Accounts and data
+
+Sign-in is email + password through Firebase Authentication (Identity Platform). Each account
+owns a document tree in Firestore: `users/{uid}` holds the profile list, and
+`users/{uid}/budgets/{profileId}` holds one profile's budget. The rules in `firestore.rules`
+allow only the signed-in owner to read or write that tree. Rule changes deploy with
+`terraform apply`.
+
+Without the `VITE_FIREBASE_*` variables (for example `npm run dev` with no `.env.local`) the app
+runs in **local mode**: no sign-in, device profiles in localStorage. Copy the values from
+`terraform output firebase_web_config` into `.env.local` to run against the real project.
+
+Two Identity Platform settings are not managed by Terraform and are worth setting in the
+Firebase console (Authentication → Settings): a password policy of 8+ characters (the app
+enforces 8 on sign-up; the server default is 6) and **email enumeration protection**. The
+Firestore database has delete protection and point-in-time recovery on; Terraform will not
+destroy it.
+
+Password-reset emails are sent by Firebase from its default sender; a custom domain and
+templates can be set in the Firebase console later.
 
 ## Day to day
 

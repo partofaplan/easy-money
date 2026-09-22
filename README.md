@@ -25,12 +25,11 @@ The design and flow are still moving, so nothing here depends on a backend.
 
 - **Seed data is static.** Starter buckets, sample bills, the demo budget and
   the tax tables live in `src/data/`. Change them there.
-- **User input stays local.** Answers, buckets, plans and purchases are kept in
-  the browser through `LocalStorageRepository` (`src/state/repository.ts`),
-  one entry per profile. A server-backed repository only needs the same
-  `load`, `save` and `clear`.
-- **Profiles are local too.** `src/state/profiles.ts` keeps the list of
-  profiles and which one is open; each profile owns its budget and theme.
+- **Two storage modes behind one interface.** With the `VITE_FIREBASE_*` variables
+  set, users sign in with email and password and their profiles and budgets live in
+  Firestore under their account (`src/cloud/`). Without them the app runs in local
+  mode: device profiles in localStorage. Both implement `Repository` and
+  `ProfileStore` (`src/state/`).
 - **Take-home estimates are estimates.** `src/domain/takeHome.ts` uses the
   approximate 2026 tables in `src/data/taxTables.ts`; states marked
   `approximate` use a typical effective rate rather than real brackets.

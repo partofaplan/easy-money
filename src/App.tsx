@@ -1,11 +1,16 @@
-import { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { StoreProvider, useStore } from './state/store';
 import { ThemeProvider } from './state/theme';
-import { useProfiles } from './state/profileContext';
+import { ProfileProvider, useProfiles } from './state/profileContext';
+import { AuthProvider, useAuth, type AuthUser } from './cloud/AuthProvider';
+import { cloudEnabled } from './cloud/firebase';
+import { FirestoreProfileStore, FirestoreRepository } from './cloud/firestoreStores';
+import { SignInPage } from './pages/SignInPage';
+import { ProfileRegistry } from './state/profiles';
 import { LocalStorageRepository } from './state/repository';
-import { dataKey, themeKey } from './state/profiles';
+import { dataKey } from './state/profiles';
 import { ProfilesPage } from './pages/ProfilesPage';
 import { Welcome } from './pages/setup/Welcome';
 import { PayFrequency } from './pages/setup/PayFrequency';
@@ -27,31 +32,116 @@ function RequireSetup({ children }: { children: JSX.Element }) {
   return data.setupComplete ? children : <Navigate to="/" replace />;
 }
 
+/** Screens with nobody open (sign-in, profile picker) follow the device setting. */
+function NeutralTheme({ children }: { children: React.ReactNode }) {
+  const noop = useCallback(() => undefined, []);
+  return (
+    <ThemeProvider choice="system" onChange={noop}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
+function Splash({ text }: { text: string }) {
+  return (
+    <div className="welcome">
+      <div className="welcome-copy" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <span className="muted">{text}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Cloud mode: sign in first, then that account's profiles. Local mode: device
+ * profiles straight away. Either way the app below sees the same providers.
+ */
 export function App() {
-  const { active } = useProfiles();
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { status, user } = useAuth();
+  if (status === 'loading') return <Splash text="Signing you in…" />;
+  if (status === 'signedOut') {
+    return (
+      <NeutralTheme>
+        <Routes>
+          <Route path="*" element={<SignInPage />} />
+        </Routes>
+      </NeutralTheme>
+    );
+  }
+  return <ProfilesForAccount user={status === 'signedIn' ? user : null} />;
+}
+
+const localProfiles = new ProfileRegistry();
+
+function ProfilesForAccount({ user }: { user: AuthUser | null }) {
+  const uid = user?.uid ?? null;
+  const email = user?.email ?? '';
+  const store = useMemo(() => (uid ? new FirestoreProfileStore(uid, email) : localProfiles), [uid, email]);
+  return (
+    <ProfileProvider key={user?.uid ?? 'local'} store={store}>
+      <BudgetForProfile user={user} />
+    </ProfileProvider>
+  );
+}
+
+function BudgetForProfile({ user }: { user: AuthUser | null }) {
+  const { ready, error, retry, active, setTheme } = useProfiles();
   const activeId = active?.id ?? null;
-  const repository = useMemo(() => (activeId ? new LocalStorageRepository(dataKey(activeId)) : null), [activeId]);
+  const uid = user?.uid ?? null;
+  const repository = useMemo(() => {
+    if (!activeId) return null;
+    return uid ? new FirestoreRepository(uid, activeId) : new LocalStorageRepository(dataKey(activeId));
+  }, [uid, activeId]);
+  const scope = uid ? `${uid}.` : '';
+  const onTheme = useCallback((c: 'system' | 'light' | 'dark') => activeId && setTheme(activeId, c), [activeId, setTheme]);
+
+  if (!ready) {
+    if (error) {
+      return (
+        <div className="welcome">
+          <div className="welcome-copy stack" style={{ justifyContent: 'center', gap: 12 }}>
+            <h1 style={{ fontSize: 26 }}>Couldn&rsquo;t load your profiles.</h1>
+            <p className="muted">{error}</p>
+            <button type="button" className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={retry}>
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <Splash text="Loading your profiles\u2026" />;
+  }
 
   if (!active || !repository) {
     return (
-      <ThemeProvider storageKey="easy-money.theme">
+      <NeutralTheme>
         <Routes>
           <Route path="*" element={<ProfilesPage />} />
         </Routes>
-      </ThemeProvider>
+      </NeutralTheme>
     );
   }
 
-  // Both providers are keyed by profile so switching remounts them with that
-  // profile's data; neither relies on the other for isolation.
+  // The store is keyed by profile so switching remounts it with that profile's
+  // data. The theme comes from the profile record, so it travels with the account.
   return (
-    <ThemeProvider key={`theme-${active.id}`} storageKey={themeKey(active.id)}>
-      <StoreProvider key={`store-${active.id}`} repository={repository}>
+    <ThemeProvider choice={active.theme ?? 'system'} onChange={onTheme}>
+      <StoreProvider key={`store-${scope}${active.id}`} repository={repository} fallback={<Splash text="Opening your budget…" />}>
         <AppRoutes />
       </StoreProvider>
     </ThemeProvider>
   );
 }
+
+export { cloudEnabled };
 
 function AppRoutes() {
   return (
