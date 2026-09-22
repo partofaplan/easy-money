@@ -36,3 +36,28 @@ describe('migrate', () => {
     expect(migrate({ version: 7 })).toBeNull();
   });
 });
+
+describe('migrate: twice-a-month pay days', () => {
+  const v4 = (nextPayday: string, payFrequency = 'semimonthly') => ({
+    version: 4,
+    setupComplete: true,
+    answers: { payFrequency, nextPayday, payType: 'salary' },
+    buckets: [],
+    bills: [],
+    incomeEvents: [],
+    plans: [],
+    deposit: null,
+    extraPlanned: 0,
+  });
+
+  it('keeps a month-end payday on the 15th-and-last-day pattern', () => {
+    expect(migrate(v4('2026-09-30'))!.answers.semimonthlyDays).toEqual([15, 31]);
+    expect(migrate(v4('2026-10-31'))!.answers.semimonthlyDays).toEqual([15, 31]);
+  });
+
+  it('leaves everyone else on the default', () => {
+    expect(migrate(v4('2026-10-15'))!.answers.semimonthlyDays).toBeNull();
+    expect(migrate(v4('2026-10-01'))!.answers.semimonthlyDays).toBeNull();
+    expect(migrate(v4('2026-09-30', 'biweekly'))!.answers.semimonthlyDays).toBeNull();
+  });
+});

@@ -84,9 +84,16 @@ export function parseStored(raw: unknown): AppData {
   return data;
 }
 
-/** v5 records which two days twice-a-month pay lands on; earlier data assumed the 1st and 15th. */
+/**
+ * v5 records which two days twice-a-month pay lands on. The old date math stepped
+ * a 15th payday to the 30th and a 30th/31st payday back to the 15th, so a stored
+ * month-end payday means the person is on the 15th-and-last-day pattern.
+ */
 function v4ToV5(v4: V4Data): AppData {
-  return { ...v4, version: 5, answers: { ...v4.answers, semimonthlyDays: null } };
+  const { payFrequency, nextPayday } = v4.answers;
+  const day = nextPayday ? Number(nextPayday.slice(8, 10)) : 0;
+  const semimonthlyDays: [number, number] | null = payFrequency === 'semimonthly' && day >= 28 ? [15, 31] : null;
+  return { ...v4, version: 5, answers: { ...v4.answers, semimonthlyDays } };
 }
 
 export class LocalStorageRepository implements Repository {

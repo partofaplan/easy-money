@@ -22,6 +22,7 @@ export function PayFrequency() {
   const days = semimonthlyDays ?? DEFAULT_SEMIMONTHLY;
   const isPreset = SEMIMONTHLY_PRESETS.some((p) => p.days[0] === days[0] && p.days[1] === days[1]);
   const [custom, setCustom] = useState(payFrequency === 'semimonthly' && !isPreset);
+  const [sameDay, setSameDay] = useState(false);
   const paydayFitsPattern = payFrequency !== 'semimonthly' || !nextPayday || isSemimonthlyPayday(nextPayday, days);
   const ready = payFrequency !== null && !!nextPayday && paydayFitsPattern;
 
@@ -46,7 +47,17 @@ export function PayFrequency() {
       }
     >
       {OPTIONS.map((o) => (
-        <OptionCard key={o.value} selected={payFrequency === o.value} onSelect={() => answer({ payFrequency: o.value })} title={o.title} sub={o.sub} />
+        <OptionCard
+          key={o.value}
+          selected={payFrequency === o.value}
+          onSelect={() => {
+            answer({ payFrequency: o.value });
+            // Moving onto a twice-a-month cadence points the date at a real pay day.
+            if (o.value === 'semimonthly') chooseDays(days);
+          }}
+          title={o.title}
+          sub={o.sub}
+        />
       ))}
       {payFrequency === 'semimonthly' && (
         <div className="card stack" style={{ marginTop: 10 }}>
@@ -75,6 +86,7 @@ export function PayFrequency() {
                       onChange={(e) => {
                         const next: [number, number] = [days[0], days[1]];
                         next[i] = Number(e.target.value);
+                        setSameDay(next[0] === next[1]);
                         if (next[0] !== next[1]) chooseDays(next);
                       }}
                     >
@@ -88,6 +100,11 @@ export function PayFrequency() {
                 </div>
               ))}
             </div>
+          )}
+          {sameDay && (
+            <span className="small" style={{ color: 'var(--warn-text)', fontWeight: 700 }}>
+              Pick two different days.
+            </span>
           )}
           <span className="small muted">
             {days[1] === 31 || days[0] === 31 ? 'The last day of the month moves with the month: the 30th, the 31st, or the 28th in February.' : 'Paychecks run from one payday to the day before the next.'}
