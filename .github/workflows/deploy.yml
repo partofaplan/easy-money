@@ -21,8 +21,9 @@ env:
 
 jobs:
   deploy:
-    # Only main deploys, even when run by hand. Workload Identity enforces the same rule.
-    if: github.ref == 'refs/heads/main'
+    # Only main deploys, even when run by hand (Workload Identity enforces the same rule),
+    # and only once the GCP repository variables have been set.
+    if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT_ID != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
