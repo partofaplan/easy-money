@@ -50,11 +50,13 @@ interface BucketRowProps {
 export function BucketRow({ bucket, due, onMarkPaid }: BucketRowProps) {
   // A saving bucket is measured against everything in it, not just this paycheck's share.
   const available = bucketAvailable(bucket);
-  const pct = available > 0 ? Math.min(100, (bucket.spent / available) * 100) : 0;
+  // An overspent bucket can owe more than it holds; it has nothing in it, not a negative amount.
+  const inIt = Math.max(0, available);
+  const pct = inIt > 0 ? Math.min(100, (bucket.spent / inIt) * 100) : 100;
   const over = bucket.spent > available;
-  const carried = bucket.carried ?? 0;
+  const carried = bucket.savesUp ? (bucket.carried ?? 0) : 0;
   const saved = available - bucket.spent;
-  const label = bucket.kind === 'savings' ? 'moved' : `of ${fmt(available)}`;
+  const label = bucket.kind === 'savings' ? 'moved' : `of ${fmt(inIt)}`;
   return (
     <div className={`bucket ${due && !due.paid ? 'bucket-due' : ''}`}>
       <div className="between" style={{ alignItems: 'baseline' }}>

@@ -113,6 +113,14 @@ describe('reducer: buckets that save up', () => {
     expect(mortgage(state).carried).toBe(0);
   });
 
+  it('does not carry when the paycheck already in progress is confirmed', () => {
+    // Confirming today's paycheck records what landed; no paycheck has ended, so nothing carries.
+    const state = reducer(withMortgage(), { type: 'confirmPaycheck', payday: '2026-09-26', amount: 2140 });
+    const mortgage = state.buckets.find((b) => b.id === 'mortgage')!;
+    expect(mortgage.carried).toBe(0);
+    expect(state.deposit).toEqual({ payday: '2026-09-26', amount: 2140 });
+  });
+
   it('still resets an ordinary bucket each paycheck', () => {
     let state = reducer(withMortgage(), { type: 'addPurchase', bucketId: 'groceries', amount: 200 });
     state = reducer(state, { type: 'confirmPaycheck', payday: '2026-10-10', amount: 2140 });

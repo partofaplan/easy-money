@@ -83,22 +83,28 @@ export function BucketsPage() {
                 </select>
               </div>
             </div>
-            <label className="row small" style={{ gap: 8, cursor: 'pointer' }} htmlFor={`saves-${b.id}`}>
+            <div className="row small" style={{ gap: 8 }}>
               <input
                 id={`saves-${b.id}`}
                 type="checkbox"
                 checked={b.savesUp === true}
-                onChange={(e) => patch(b.id, { savesUp: e.target.checked || undefined, carried: e.target.checked ? (b.carried ?? 0) : undefined })}
+                aria-describedby={`saves-help-${b.id}`}
+                // The balance is kept when this is turned off, so it comes back if it was a slip.
+                onChange={(e) => patch(b.id, { savesUp: e.target.checked || undefined })}
               />
               <span className="stack" style={{ gap: 2 }}>
-                <span style={{ fontWeight: 700 }}>Saves up across paychecks</span>
-                <span className="muted">
+                <label htmlFor={`saves-${b.id}`} style={{ fontWeight: 700, cursor: 'pointer' }}>
+                  Saves up across paychecks
+                </label>
+                <span className="muted" id={`saves-help-${b.id}`}>
                   {b.savesUp
                     ? `What is left carries into the next paycheck.${(b.carried ?? 0) !== 0 ? ` Holding ${fmt(b.carried ?? 0)} from earlier paychecks.` : ''}`
-                    : 'For a bill you cover from more than one paycheck, like a mortgage paid after the second payday.'}
+                    : (b.carried ?? 0) !== 0
+                      ? `Still holding ${fmt(b.carried ?? 0)} from earlier paychecks, set aside until you turn this back on.`
+                      : 'For a bill you cover from more than one paycheck, like a mortgage paid after the second payday.'}
                 </span>
               </span>
-            </label>
+            </div>
           </div>
         ))}
         <button

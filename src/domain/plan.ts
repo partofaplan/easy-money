@@ -119,7 +119,7 @@ export function rescaleBuckets(buckets: Bucket[], paycheck: number): Bucket[] {
 
 /** Everything a bucket can cover this paycheck: what carried in, plus this paycheck's fill. */
 export function bucketAvailable(bucket: Bucket): number {
-  return (bucket.carried ?? 0) + bucket.planned;
+  return (bucket.savesUp ? (bucket.carried ?? 0) : 0) + bucket.planned;
 }
 
 /** What a bucket carries into the next paycheck. Zero unless it saves up. */
@@ -306,12 +306,17 @@ export interface DueStatus {
   overdue: boolean;
 }
 
-/** Whether a bucket is due within a paycheck, and where it stands. */
+/**
+ * Whether a bucket is due within a paycheck, and where it stands. Measured
+ * against everything the bucket holds, so a bill saved up over several
+ * paychecks is only paid once the whole balance has gone out.
+ */
 export function bucketDueStatus(bucket: Bucket, period: PayPeriod, todayISO: string): DueStatus | null {
   const dueOn = dueDateInPeriod(bucket.dueDay, period);
-  // Nothing planned for this paycheck means the bill is being paid from another one: no reminder.
-  if (!dueOn || bucket.planned <= 0) return null;
-  const paid = bucket.paidOn === dueOn || bucket.spent >= bucket.planned;
+  const available = bucketAvailable(bucket);
+  // Nothing in the bucket for this paycheck means the bill is being paid from another one: no reminder.
+  if (!dueOn || available <= 0) return null;
+  const paid = bucket.paidOn === dueOn || bucket.spent >= available;
   return { dueOn, paid, overdue: !paid && todayISO > dueOn };
 }
 

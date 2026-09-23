@@ -276,4 +276,34 @@ describe('buckets that save up across paychecks', () => {
   it('leaves a bucket that does not save up untouched', () => {
     expect(carryBalances([plain])[0]).toEqual(plain);
   });
+
+  it('treats a saving bucket that has never carried anything as holding nothing', () => {
+    const fresh = { id: 'car', name: 'Car repairs', planned: 100, defaultAmount: 100, spent: 0, kind: 'spending' as const, savesUp: true };
+    expect(bucketAvailable(fresh)).toBe(100);
+    expect(carryBalances([fresh])[0].carried).toBe(100);
+  });
+});
+
+describe('due dates on a bucket that saves up', () => {
+  const period = { payday: '2026-09-26', end: '2026-10-09', takeHome: 2140 };
+  // $475 from each of two paychecks toward a $950 mortgage due on the 1st.
+  const mortgage = { id: 'mortgage', name: 'Mortgage', planned: 475, defaultAmount: 475, spent: 0, kind: 'spending' as const, dueDay: 1, savesUp: true, carried: 475 };
+
+  it('is not paid until the whole balance has gone out', () => {
+    // Half the bill spent: the reminder has to stay.
+    expect(bucketDueStatus({ ...mortgage, spent: 475 }, period, '2026-09-30')?.paid).toBe(false);
+    expect(bucketDueStatus({ ...mortgage, spent: 950 }, period, '2026-09-30')?.paid).toBe(true);
+  });
+
+  it('still reminds in the paycheck the money was saved for, even with nothing added', () => {
+    // The last paycheck before the bill adds nothing; the balance already covers it.
+    const status = bucketDueStatus({ ...mortgage, planned: 0, carried: 950 }, period, '2026-09-30');
+    expect(status).not.toBeNull();
+    expect(status?.paid).toBe(false);
+  });
+
+  it('ignores a balance on a bucket that does not save up', () => {
+    expect(bucketDueStatus({ ...mortgage, savesUp: false, spent: 475 }, period, '2026-09-30')?.paid).toBe(true);
+    expect(bucketDueStatus({ ...mortgage, savesUp: false, planned: 0 }, period, '2026-09-30')).toBeNull();
+  });
 });

@@ -269,7 +269,7 @@ export function Home() {
       <div className="between" style={{ marginTop: 22, alignItems: 'baseline' }}>
         <h2>Your buckets</h2>
         <span className="small muted" style={{ fontWeight: 700 }}>
-          spent of planned
+          spent of what&rsquo;s in it
         </span>
       </div>
       {dueNow.length > 0 && (
