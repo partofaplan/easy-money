@@ -180,7 +180,8 @@ export function PlanPage() {
         <h1>Paycheck plan</h1>
         <p className="muted" style={{ fontSize: 15 }}>
           Decide ahead of time where each paycheck goes. Bills that change month to month, or that you save for differently, get their own numbers. When a paycheck lands,
-          confirm it on <Link to="/app">This paycheck</Link> and the buckets fill themselves.
+          confirm it on <Link to="/app">This paycheck</Link> and the buckets fill themselves. For a bill you cover from more than one paycheck, mark its bucket{' '}
+          <Link to="/app/buckets">saves up</Link> and what you put in stays there until you spend it.
         </p>
       </div>
       {plans.map((plan, i) => (

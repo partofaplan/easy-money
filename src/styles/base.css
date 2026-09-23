@@ -835,6 +835,24 @@ p {
     order: 10;
     flex-basis: 100%;
   }
+  /* Its own line under the flattened row. Deliberately not `.row`, which the
+     rule above dissolves into the card. */
+  .bucket-edit .bucket-saves {
+    order: 10;
+    flex-basis: 100%;
+  }
+}
+.bucket-saves {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bucket-saves input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
 }
 .bucket-add {
   display: flex;

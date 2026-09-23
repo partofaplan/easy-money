@@ -28,7 +28,8 @@ export function BucketsPage() {
         <span className="stack" style={{ gap: 6 }}>
           <h1>Buckets</h1>
           <p className="muted" style={{ fontSize: 15 }}>
-            How the {fmt(paycheck)} in this paycheck is split up.
+            How the {fmt(paycheck)} in this paycheck is split up. Tick <b>saves up</b> on a bill you cover from more than one paycheck, like a mortgage paid after
+            the second payday, and whatever is left in it carries into the next paycheck instead of starting over.
           </p>
         </span>
         <span className={`pill`} style={{ background: left === 0 ? 'var(--tint)' : 'var(--warn-bg)', color: left === 0 ? 'var(--accent)' : 'var(--warn-text)' }}>
@@ -37,7 +38,9 @@ export function BucketsPage() {
       </div>
 
       <div className="stack" style={{ gap: 8 }}>
-        {list.map((b, i) => (
+        {list.map((b, i) => {
+          const held = b.carried ?? 0;
+          return (
           <div key={b.id} className="card bucket-edit">
             <div className="row grow">
               <label htmlFor={`name-${b.id}`} className="sr-only">
@@ -83,30 +86,29 @@ export function BucketsPage() {
                 </select>
               </div>
             </div>
-            <div className="row small" style={{ gap: 8 }}>
+            <div className="bucket-saves small">
               <input
                 id={`saves-${b.id}`}
                 type="checkbox"
                 checked={b.savesUp === true}
-                aria-describedby={`saves-help-${b.id}`}
+                aria-describedby={held !== 0 ? `saves-help-${b.id}` : undefined}
                 // The balance is kept when this is turned off, so it comes back if it was a slip.
                 onChange={(e) => patch(b.id, { savesUp: e.target.checked || undefined })}
               />
-              <span className="stack" style={{ gap: 2 }}>
-                <label htmlFor={`saves-${b.id}`} style={{ fontWeight: 700, cursor: 'pointer' }}>
-                  Saves up across paychecks
-                </label>
+              <label htmlFor={`saves-${b.id}`} style={{ cursor: 'pointer' }}>
+                Saves up across paychecks
+              </label>
+              {held !== 0 && (
                 <span className="muted" id={`saves-help-${b.id}`}>
-                  {b.savesUp
-                    ? `What is left carries into the next paycheck.${(b.carried ?? 0) !== 0 ? ` Holding ${fmt(b.carried ?? 0)} from earlier paychecks.` : ''}`
-                    : (b.carried ?? 0) !== 0
-                      ? `Still holding ${fmt(b.carried ?? 0)} from earlier paychecks, set aside until you turn this back on.`
-                      : 'For a bill you cover from more than one paycheck, like a mortgage paid after the second payday.'}
+                  {held > 0
+                    ? `· holding ${fmt(held)}${b.savesUp ? '' : ', set aside until you turn this back on'}`
+                    : `· ${fmt(-held)} overspent in earlier paychecks`}
                 </span>
-              </span>
+              )}
             </div>
           </div>
-        ))}
+          );
+        })}
         <button
           type="button"
           className="bucket-add"
