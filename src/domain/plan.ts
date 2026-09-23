@@ -117,6 +117,24 @@ export function rescaleBuckets(buckets: Bucket[], paycheck: number): Bucket[] {
   return scaled.map((b) => ({ ...b, defaultAmount: b.planned }));
 }
 
+/** Everything a bucket can cover this paycheck: what carried in, plus this paycheck's fill. */
+export function bucketAvailable(bucket: Bucket): number {
+  return (bucket.carried ?? 0) + bucket.planned;
+}
+
+/** What a bucket carries into the next paycheck. Zero unless it saves up. */
+export function carryOver(bucket: Bucket): number {
+  return bucket.savesUp ? bucketAvailable(bucket) - bucket.spent : 0;
+}
+
+/**
+ * Move each saves-up bucket's leftover into its carried balance. Run when a new
+ * paycheck starts, before the buckets are refilled and spending is reset.
+ */
+export function carryBalances(buckets: Bucket[]): Bucket[] {
+  return buckets.map((b) => (b.savesUp ? { ...b, carried: carryOver(b) } : b));
+}
+
 export function billsInPeriod(bills: Bill[], period: PayPeriod): Bill[] {
   return bills
     .filter((b) => b.dueDate >= period.payday && b.dueDate <= period.end)

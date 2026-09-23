@@ -65,6 +65,14 @@ export interface Bucket {
   dueDay?: number;
   /** ISO due date the user marked as paid by hand, when spending alone would not show it. */
   paidOn?: string;
+  /**
+   * A bucket that saves up: whatever is left in it when a paycheck ends carries
+   * into the next one instead of starting over. For a bill you cover from more
+   * than one paycheck, like a mortgage paid after the second payday.
+   */
+  savesUp?: boolean;
+  /** Money carried in from earlier paychecks. Only ever set on a saves-up bucket. */
+  carried?: number;
 }
 
 export interface Bill {

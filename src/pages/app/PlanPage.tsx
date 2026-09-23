@@ -20,9 +20,11 @@ interface PlanCardProps {
   confirmedAmount: number | null;
   /** Extra money planned into this paycheck. */
   extra: number;
+  /** What each saves-up bucket will hold once this paycheck is in, by bucket id. */
+  balances: Record<string, number>;
 }
 
-function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardProps) {
+function PlanCard({ plan, index, previous, confirmedAmount, extra, balances }: PlanCardProps) {
   const { data, setPlan } = useStore();
   const buckets = data.buckets;
   const assigned = planAssigned(plan, buckets);
@@ -99,6 +101,11 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
               {b.name}
               {b.dueDay ? <span className="muted" style={{ fontWeight: 600 }}> · due the {ordinalDay(b.dueDay)}</span> : null}
             </label>
+            {b.savesUp && (
+              <span className="small muted" style={{ order: 3 }}>
+                Will hold {fmt(balances[b.id] ?? 0)} after this paycheck
+              </span>
+            )}
             {readOnly ? (
               <div className="input" style={{ background: 'var(--tint)', borderColor: 'transparent' }}>
                 <span className="unit">$</span>
@@ -150,6 +157,15 @@ export function PlanPage() {
       : planFor(payday, data.plans, data.buckets, data.answers);
   });
 
+  // A saves-up bucket keeps what it is not spent, so its balance builds across the
+  // plans. Future spending is unknown, so this is what it holds if left alone.
+  const running: Record<string, number> = {};
+  for (const b of data.buckets) if (b.savesUp) running[b.id] = (b.carried ?? 0) - b.spent;
+  const balances = plans.map((plan) => {
+    for (const b of data.buckets) if (b.savesUp) running[b.id] += plannedAmount(plan, b);
+    return { ...running };
+  });
+
   return (
     <main className="shell-main stack" style={{ gap: 18, maxWidth: 760 }}>
       <div className="page-head stack" style={{ gap: 6 }}>
@@ -167,6 +183,7 @@ export function PlanPage() {
           previous={i > 0 ? plans[i - 1] : null}
           confirmedAmount={data.deposit?.payday === plan.payday ? data.deposit.amount : null}
           extra={outlook[i].extraTotal}
+          balances={balances[i]}
         />
       ))}
       <button type="button" className="bucket-add" onClick={planAnother}>

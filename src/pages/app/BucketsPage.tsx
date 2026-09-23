@@ -83,6 +83,22 @@ export function BucketsPage() {
                 </select>
               </div>
             </div>
+            <label className="row small" style={{ gap: 8, cursor: 'pointer' }} htmlFor={`saves-${b.id}`}>
+              <input
+                id={`saves-${b.id}`}
+                type="checkbox"
+                checked={b.savesUp === true}
+                onChange={(e) => patch(b.id, { savesUp: e.target.checked || undefined, carried: e.target.checked ? (b.carried ?? 0) : undefined })}
+              />
+              <span className="stack" style={{ gap: 2 }}>
+                <span style={{ fontWeight: 700 }}>Saves up across paychecks</span>
+                <span className="muted">
+                  {b.savesUp
+                    ? `What is left carries into the next paycheck.${(b.carried ?? 0) !== 0 ? ` Holding ${fmt(b.carried ?? 0)} from earlier paychecks.` : ''}`
+                    : 'For a bill you cover from more than one paycheck, like a mortgage paid after the second payday.'}
+                </span>
+              </span>
+            </label>
           </div>
         ))}
         <button

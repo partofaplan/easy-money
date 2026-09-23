@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bucketAvailable,
   bucketDueStatus,
+  carryBalances,
+  carryOver,
   buildOutlook,
   dueDateInPeriod,
   fillFromPlan,
@@ -240,5 +243,37 @@ describe('hourly pay plans', () => {
   it('falls back to the fixed amount for salaried pay', () => {
     expect(takeHomeForHours(DEMO_DATA.answers, 80)).toBe(2140);
     expect(planFor('2026-10-24', [], buckets, DEMO_DATA.answers).hours).toBeUndefined();
+  });
+});
+
+describe('buckets that save up across paychecks', () => {
+  const saver = { id: 'mortgage', name: 'Mortgage', planned: 900, defaultAmount: 900, spent: 0, kind: 'spending' as const, savesUp: true, carried: 900 };
+  const plain = { id: 'groceries', name: 'Groceries', planned: 260, defaultAmount: 260, spent: 100, kind: 'spending' as const };
+
+  it('counts what carried in as money the bucket can cover', () => {
+    expect(bucketAvailable(saver)).toBe(1800);
+    expect(bucketAvailable(plain)).toBe(260);
+  });
+
+  it('carries the leftover on, and nothing for a bucket that does not save', () => {
+    expect(carryOver(saver)).toBe(1800);
+    expect(carryOver({ ...saver, spent: 1800 })).toBe(0);
+    expect(carryOver(plain)).toBe(0);
+  });
+
+  it('builds a balance over two paychecks and empties when the bill is paid', () => {
+    // First paycheck: $900 in, nothing spent.
+    let buckets = carryBalances([{ ...saver, carried: 0 }]);
+    expect(buckets[0].carried).toBe(900);
+    // Second paycheck: another $900 in.
+    buckets = carryBalances(buckets.map((b) => ({ ...b, planned: 900, spent: 0 })));
+    expect(buckets[0].carried).toBe(1800);
+    // The mortgage goes out.
+    buckets = carryBalances(buckets.map((b) => ({ ...b, planned: 0, spent: 1800 })));
+    expect(buckets[0].carried).toBe(0);
+  });
+
+  it('leaves a bucket that does not save up untouched', () => {
+    expect(carryBalances([plain])[0]).toEqual(plain);
   });
 });
