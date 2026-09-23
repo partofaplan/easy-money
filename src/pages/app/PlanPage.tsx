@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { MoneyInput } from '../../components/MoneyInput';
-import { isHourly, planAssigned, planFor, plannedAmount, takeHomeForHours } from '../../domain/plan';
+import { dueDateInPeriod, isHourly, planAssigned, planFor, plannedAmount, takeHomeForHours } from '../../domain/plan';
 import type { PaycheckPlan } from '../../domain/types';
 import { fmtShort, fmtWeekday, ordinalDay } from '../../lib/dates';
 import { fmt } from '../../lib/money';
@@ -20,9 +20,11 @@ interface PlanCardProps {
   confirmedAmount: number | null;
   /** Extra money planned into this paycheck. */
   extra: number;
+  /** What each saves-up bucket will hold once this paycheck is in, by bucket id. */
+  balances: Record<string, number>;
 }
 
-function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardProps) {
+function PlanCard({ plan, index, previous, confirmedAmount, extra, balances }: PlanCardProps) {
   const { data, setPlan } = useStore();
   const buckets = data.buckets;
   const assigned = planAssigned(plan, buckets);
@@ -99,6 +101,15 @@ function PlanCard({ plan, index, previous, confirmedAmount, extra }: PlanCardPro
               {b.name}
               {b.dueDay ? <span className="muted" style={{ fontWeight: 600 }}> · due the {ordinalDay(b.dueDay)}</span> : null}
             </label>
+            {b.savesUp &&
+              (() => {
+                const balance = balances[b.id] ?? 0;
+                return (
+                  <span className="small muted" style={{ order: 3 }}>
+                    {balance < 0 ? `Will still be ${fmt(-balance)} short after this paycheck` : `Will hold ${fmt(balance)} after this paycheck`}
+                  </span>
+                );
+              })()}
             {readOnly ? (
               <div className="input" style={{ background: 'var(--tint)', borderColor: 'transparent' }}>
                 <span className="unit">$</span>
@@ -150,13 +161,27 @@ export function PlanPage() {
       : planFor(payday, data.plans, data.buckets, data.answers);
   });
 
+  // A saves-up bucket keeps what it is not spent, so its balance builds across the
+  // plans. Future spending is unknown, except that a bucket with a due day is
+  // expected to pay out in the paycheck its date falls in, and start over after.
+  const saving = data.buckets.filter((b) => b.savesUp);
+  const running: Record<string, number> = {};
+  for (const b of saving) running[b.id] = (b.carried ?? 0) - b.spent;
+  const balances = plans.map((plan, i) => {
+    for (const b of saving) running[b.id] += plannedAmount(plan, b);
+    const afterThisPaycheck = { ...running };
+    for (const b of saving) if (dueDateInPeriod(b.dueDay, outlook[i].period)) running[b.id] = 0;
+    return afterThisPaycheck;
+  });
+
   return (
     <main className="shell-main stack" style={{ gap: 18, maxWidth: 760 }}>
       <div className="page-head stack" style={{ gap: 6 }}>
         <h1>Paycheck plan</h1>
         <p className="muted" style={{ fontSize: 15 }}>
           Decide ahead of time where each paycheck goes. Bills that change month to month, or that you save for differently, get their own numbers. When a paycheck lands,
-          confirm it on <Link to="/app">This paycheck</Link> and the buckets fill themselves.
+          confirm it on <Link to="/app">This paycheck</Link> and the buckets fill themselves. For a bill you cover from more than one paycheck, mark its bucket{' '}
+          <Link to="/app/buckets">saves up</Link> and what you put in stays there until you spend it.
         </p>
       </div>
       {plans.map((plan, i) => (
@@ -167,6 +192,7 @@ export function PlanPage() {
           previous={i > 0 ? plans[i - 1] : null}
           confirmedAmount={data.deposit?.payday === plan.payday ? data.deposit.amount : null}
           extra={outlook[i].extraTotal}
+          balances={balances[i]}
         />
       ))}
       <button type="button" className="bucket-add" onClick={planAnother}>

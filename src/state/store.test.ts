@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_DATA } from '../data/fixtures';
+import type { AppData } from '../domain/types';
 import { bucketsFromLifestyle } from '../domain/lifestyle';
 import { reducer } from './store';
 
@@ -78,5 +79,53 @@ describe('reducer: paycheck plans and confirmation', () => {
   it('ignores a confirmation for a paycheck that is neither current nor next', () => {
     const state = reducer(demo(), { type: 'confirmPaycheck', payday: '2026-10-24', amount: 2140 });
     expect(state).toEqual(demo());
+  });
+});
+
+describe('reducer: buckets that save up', () => {
+  /** The mortgage case: half from each paycheck, paid in full after the second. */
+  const withMortgage = (): AppData => {
+    const base = demo();
+    return {
+      ...base,
+      plans: [],
+      deposit: null,
+      buckets: [
+        { id: 'mortgage', name: 'Mortgage', planned: 900, defaultAmount: 900, spent: 0, kind: 'spending' as const, savesUp: true, carried: 0 },
+        ...base.buckets.filter((b) => b.id !== 'housing'),
+      ],
+    };
+  };
+
+  it('carries what is left into the next paycheck and empties when the bill is paid', () => {
+    let state = withMortgage();
+    const mortgage = (s: AppData) => s.buckets.find((b) => b.id === 'mortgage')!;
+
+    // Second paycheck lands: the first $900 carries over and another $900 is filled in.
+    state = reducer(state, { type: 'confirmPaycheck', payday: '2026-10-10', amount: 2140 });
+    expect(mortgage(state).carried).toBe(900);
+    expect(mortgage(state).planned).toBe(900);
+    expect(mortgage(state).spent).toBe(0);
+
+    // Paying the mortgage spends everything the bucket holds.
+    state = reducer(state, { type: 'addPurchase', bucketId: 'mortgage', amount: 1800 });
+    state = reducer(state, { type: 'confirmPaycheck', payday: '2026-10-24', amount: 2140 });
+    expect(mortgage(state).carried).toBe(0);
+  });
+
+  it('does not carry when the paycheck already in progress is confirmed', () => {
+    // Confirming today's paycheck records what landed; no paycheck has ended, so nothing carries.
+    const state = reducer(withMortgage(), { type: 'confirmPaycheck', payday: '2026-09-26', amount: 2140 });
+    const mortgage = state.buckets.find((b) => b.id === 'mortgage')!;
+    expect(mortgage.carried).toBe(0);
+    expect(state.deposit).toEqual({ payday: '2026-09-26', amount: 2140 });
+  });
+
+  it('still resets an ordinary bucket each paycheck', () => {
+    let state = reducer(withMortgage(), { type: 'addPurchase', bucketId: 'groceries', amount: 200 });
+    state = reducer(state, { type: 'confirmPaycheck', payday: '2026-10-10', amount: 2140 });
+    const groceries = state.buckets.find((b) => b.id === 'groceries')!;
+    expect(groceries.spent).toBe(0);
+    expect(groceries.carried).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import type { Answers, AppData, BonusAllocation, Bucket, IncomeEvent, PaycheckPlan } from '../domain/types';
 import { emptyAnswers } from '../domain/types';
-import { defaultTakeHome, fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
+import { carryBalances, defaultTakeHome, fillFromPlan, nextPayday, planFor, rescaleBuckets, suggestBuckets } from '../domain/plan';
 import { DEMO_DATA, SAMPLE_BILLS, STARTER_BUCKETS } from '../data/fixtures';
 import { newId } from '../lib/money';
 import type { Repository } from './repository';
@@ -139,12 +139,13 @@ export function reducer(state: AppData, action: Action): AppData {
       // Irregular pay has no fixed next date, so any later date counts; otherwise it must be the next payday.
       const isNext = payFrequency === 'irregular' ? action.payday > current : action.payday === nextPayday(current, payFrequency, state.answers.semimonthlyDays);
       if (isNext) {
-        // The next paycheck landed: move to it, fill buckets, start spending fresh.
+        // The next paycheck landed: move to it, carry what the saving buckets kept,
+        // fill from the plan, start spending fresh.
         return {
           ...state,
           answers: { ...state.answers, nextPayday: action.payday },
           deposit,
-          buckets: fillFromPlan(state.buckets, plan).map((b) => ({ ...b, spent: 0, paidOn: undefined })),
+          buckets: fillFromPlan(carryBalances(state.buckets), plan).map((b) => ({ ...b, spent: 0, paidOn: undefined })),
           plans: remaining,
           extraPlanned: Math.max(0, state.extraPlanned - 1),
         };

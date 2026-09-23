@@ -109,7 +109,15 @@ export function LifestyleBuckets() {
   }
 
   const generic = answersAddNothing(selections);
-  const save = (buckets: Bucket[]) => setBuckets(buckets.map((b) => ({ ...b })));
+  // Rebuilding the list keeps what a bucket already saved, so re-running the
+  // interview on a budget in use does not quietly empty it.
+  const save = (buckets: Bucket[]) =>
+    setBuckets(
+      buckets.map((b) => {
+        const existing = data.buckets.find((x) => x.id === b.id);
+        return existing?.savesUp ? { ...b, savesUp: true, carried: existing.carried } : { ...b };
+      }),
+    );
 
   return (
     <SetupFrame
